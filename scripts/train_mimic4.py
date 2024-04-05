@@ -12,7 +12,7 @@ from lightning import Trainer, seed_everything
 from lightning.pytorch.callbacks import LearningRateMonitor, ModelCheckpoint, EarlyStopping
 from lightning.pytorch.loggers import WandbLogger
 from cmehr.dataset import MIMIC4DataModule
-from cmehr.models.mimic4 import ProtoTSModel, IPNetModule, GRUDModule, SEFTModule, MTANDModule, DGM2OModule
+from cmehr.models.mimic4 import ProtoTSModel, IPNetModule, GRUDModule, SEFTModule, MTANDModule, DGM2OModule, MedFuseModule
 from cmehr.paths import *
 
 torch.backends.cudnn.deterministic = True  # type: ignore
@@ -31,9 +31,10 @@ parser.add_argument("--devices", type=int, default=1)
 parser.add_argument("--max_length", type=int, default=1024)
 parser.add_argument("--accumulate_grad_batches", type=int, default=1)
 parser.add_argument("--first_nrows", type=int, default=-1)
-parser.add_argument("--model_name", type=str, default="proto_ts",
-                    choices=["proto_ts", "ipnet", "grud", "seft", "mtand", "dgm2"])
-parser.add_argument("--modeltype", type=str, default="TS",
+parser.add_argument("--model_name", type=str, default="medfuse",
+                    choices=["proto_ts", "ipnet", "grud", "seft", "mtand", "dgm2",
+                             "medfuse"])
+parser.add_argument("--modeltype", type=str, default="TS_CXR",
                     choices=["TS_CXR", "TS", "CXR"],
                     help="Set the model type to use for training")
 parser.add_argument("--ts_learning_rate", type=float, default=4e-4)
@@ -47,22 +48,8 @@ parser.add_argument("--use_multiscale", action="store_true")
 args = parser.parse_args()
 
 '''
-# train IPNet
-CUDA_VISIBLE_DEVICES=1 python train_mimic4.py --devices 1 --task ihm --batch_size 128 --model_name dgm2
-CUDA_VISIBLE_DEVICES=2 python train_mimic4.py --devices 1 --task pheno --batch_size 128 --model_name dgm2
-
-CUDA_VISIBLE_DEVICES=0 python train_mimic4.py --devices 1 --task ihm --batch_size 128 --model_name mtand
-CUDA_VISIBLE_DEVICES=2 python train_mimic4.py --devices 1 --task pheno --batch_size 128 --model_name mtand
-
-# train
-CUDA_VISIBLE_DEVICES=0 python train_mimic4.py --devices 1 --task ihm --model_name proto_ts --use_prototype --use_multiscale
-CUDA_VISIBLE_DEVICES=2 python train_mimic4.py --devices 1 --task pheno --model_name proto_ts --use_prototype --use_multiscale
-# test
-CUDA_VISIBLE_DEVICES=0 python train_mimic4.py --devices 1 --task pheno --test_only --batch_size 16 \
---ckpt_path /home/**/Documents/CM-EHR/log/ckpts/mimic4_pheno_2024-02-28_17-12-05/epoch=13-step=2212.ckpt
-
-CUDA_VISIBLE_DEVICES=2 python train_mimic4.py --devices 1 --task ihm --test_only --batch_size 16 \
---ckpt_path /home/**/Documents/CM-EHR/log/ckpts/mimic4_ihm_2024-02-28_14-55-14/epoch=11-step=1620.ckpt
+CUDA_VISIBLE_DEVICES=0 python train_mimic4.py --devices 1 --task ihm --batch_size 128 --model_name medfuse
+CUDA_VISIBLE_DEVICES=2 python train_mimic4.py --devices 1 --task pheno --batch_size 128 --model_name medfuse
 '''
 
 
@@ -137,6 +124,12 @@ def cli_main():
                     args.ckpt_path, **vars(args))
             else:
                 model = DGM2OModule(**vars(args))
+        elif args.model_name == "medfuse":
+            if args.ckpt_path:
+                model = MedFuseModule.load_from_checkpoint(
+                    args.ckpt_path, **vars(args))
+            else:
+                model = MedFuseModule(**vars(args))
         else:
             raise ValueError("Invalid model name")
 

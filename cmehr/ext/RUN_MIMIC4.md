@@ -58,6 +58,8 @@ python -m mimic4benchmark.scripts.create_in_hospital_mortality /disk1/**/EHR_dat
 <!-- python -m mimic4benchmark.scripts.create_phenotyping /disk1/**/EHR_dataset/mimiciv_benchmark /disk1/**/EHR_dataset/mimiciv_benchmark/phenotyping/ -->
 python -m mimic4benchmark.scripts.create_24h_phenotyping /disk1/**/EHR_dataset/mimiciv_benchmark /disk1/**/EHR_dataset/mimiciv_benchmark/phenotyping_24h
 
+python -m mimic4benchmark.scripts.create_survival_prediction /disk1/fywang/EHR_dataset/mimiciv_benchmark /disk1/fywang/EHR_dataset/mimiciv_benchmark/survival_prediction
+
 ```
 
 6. 

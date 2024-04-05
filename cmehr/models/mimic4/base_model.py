@@ -73,6 +73,13 @@ class MIMIC4LightningModule(LightningModule):
                 reg_ts=batch["reg_ts"],
                 labels=batch["label"],
             )
+        elif self.modeltype == "CXR":
+            loss = self(
+                cxr_imgs_sequences=batch["cxr_imgs"],
+                cxr_time_sequences=batch["cxr_time"],
+                cxr_time_mask_sequences=batch["cxr_time_mask"],
+                labels=batch["label"],
+            )
         else:
             raise NotImplementedError
 
@@ -102,6 +109,12 @@ class MIMIC4LightningModule(LightningModule):
                 x_ts_mask=batch["ts_mask"],
                 ts_tt_list=batch["ts_tt"],
                 reg_ts=batch["reg_ts"],
+            )
+        elif self.modeltype == "CXR":
+            logits = self(
+                cxr_imgs_sequences=batch["cxr_imgs"],
+                cxr_time_sequences=batch["cxr_time"],
+                cxr_time_mask_sequences=batch["cxr_time_mask"],
             )
         else:
             raise NotImplementedError

@@ -6,8 +6,9 @@ from cmehr.models.mimic4.base_model import MIMIC4LightningModule
 
 import ipdb
 
+
 class RNN(MIMIC4LightningModule):
-    def __init__(self, 
+    def __init__(self,
                  task: str = "ihm",
                  modeltype: str = "TS",
                  max_epochs: int = 10,
@@ -15,30 +16,31 @@ class RNN(MIMIC4LightningModule):
                  ts_learning_rate: float = 4e-4,
                  period_length: int = 48,
                  orig_reg_d_ts: int = 30,
-                 hidden_dim=128, 
+                 hidden_dim=128,
                  n_layers=3,
                  *args,
                  **kwargs):
         super().__init__(task=task, modeltype=modeltype, max_epochs=max_epochs,
                          img_learning_rate=img_learning_rate, ts_learning_rate=ts_learning_rate,
                          period_length=period_length)
-        
+
         self.input_size = orig_reg_d_ts
         self.n_layers = n_layers
-        self.hidden_dim=hidden_dim
+        self.hidden_dim = hidden_dim
 
         # define an RNN with specified parameters
-        self.rnn = nn.RNN(self.input_size, self.hidden_dim, self.n_layers, batch_first=True)
-        
+        self.rnn = nn.RNN(self.input_size, self.hidden_dim,
+                          self.n_layers, batch_first=True)
+
         # last, fully-connected layers
         self.fc = nn.Linear(hidden_dim, self.num_labels)
 
     def init_hidden(self, batch_size):
-        hidden =  torch.zeros(self.n_layers, batch_size, self.hidden_dim)
+        hidden = torch.zeros(self.n_layers, batch_size, self.hidden_dim)
         print('hidden: ', hidden.shape)
         return hidden
-    
-    def forward(self, 
+
+    def forward(self,
                 x,
                 hidden=None,
                 labels=None):
@@ -46,7 +48,7 @@ class RNN(MIMIC4LightningModule):
         # hidden (n_layers, batch_size, hidden_dim)
         # r_out (batch_size, time_step, hidden_size)
         batch_size = x.size(0)
-        
+
         if hidden is None:
             hidden = self.init_hidden(batch_size)
         # get RNN outputs
@@ -54,12 +56,11 @@ class RNN(MIMIC4LightningModule):
         print('r_out: ', r_out.shape)
         # shape output to be (batch_size*seq_length, hidden_dim)
         r_out = r_out[:, -1, :]
-        print('r_out: ', r_out.shape)  
-        
-        # get final output 
+        print('r_out: ', r_out.shape)
+
+        # get final output
         output = self.fc(r_out)
         print('output: ', output.shape)
-        
 
         if self.task == 'ihm':
             if labels != None:
@@ -75,7 +76,8 @@ class RNN(MIMIC4LightningModule):
                 ce_loss = self.loss_fct1(output, labels)
                 return ce_loss
             return torch.sigmoid(output)
-    
+
+
 if __name__ == "__main__":
     from torch.utils.data import DataLoader
     from cmehr.paths import *
