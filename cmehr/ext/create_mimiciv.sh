@@ -6,3 +6,8 @@ python -m mimic4benchmark.scripts.create_in_hospital_mortality /disk1/**/EHR_dat
 python -m mimic4benchmark.scripts.create_24h_phenotyping /disk1/**/EHR_dataset/mimiciv_benchmark /disk1/**/EHR_dataset/mimiciv_benchmark/phenotyping_24h
 python -m mimic4models.split_train_val /disk1/**/EHR_dataset/mimiciv_benchmark/in-hospital-mortality/
 python -m mimic4models.split_train_val /disk1/**/EHR_dataset/mimiciv_benchmark/phenotyping_24h
+
+
+python -m mimic3benchmark.scripts.create_survival_prediction /disk1/fywang/EHR_dataset/mimiciii_benchmark /disk1/fywang/EHR_dataset/mimiciii_benchmark/survival_prediction/
+
+python -m mimic3models.split_train_val /disk1/fywang/EHR_dataset/mimiciii_benchmark/survival_prediction/

@@ -6,3 +6,4 @@ from .seft_model import SEFTModule
 from .mtand_model import MTANDModule
 from .dgm2_model import DGM2OModule
 from .medfuse_model import MedFuseModule
+from .cnn_model import CNNModule

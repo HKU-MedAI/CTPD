@@ -11,8 +11,10 @@ import torch
 from lightning import Trainer, seed_everything
 from lightning.pytorch.callbacks import LearningRateMonitor, ModelCheckpoint, EarlyStopping
 from lightning.pytorch.loggers import WandbLogger
-from cmehr.dataset import MIMIC4DataModule
-from cmehr.models.mimic4 import ProtoTSModel, IPNetModule, GRUDModule, SEFTModule, MTANDModule, DGM2OModule, MedFuseModule
+from cmehr.dataset import MIMIC4DataModule, MIMIC3DataModule
+from cmehr.models.mimic4 import (
+    CNNModule, ProtoTSModel, IPNetModule, GRUDModule, SEFTModule,
+    MTANDModule, DGM2OModule, MedFuseModule)
 from cmehr.paths import *
 
 torch.backends.cudnn.deterministic = True  # type: ignore
@@ -20,6 +22,8 @@ torch.backends.cudnn.benchmark = True  # type: ignore
 torch.set_float32_matmul_precision("high")
 
 parser = ArgumentParser(description="PyTorch Lightning EHR Model")
+parser.add_argument("--dataset_name", type=str, default="mimic3",
+                    choices=["mimic3", "mimic4"])
 parser.add_argument("--task", type=str, default="pheno",
                     choices=["ihm", "decomp", "los", "pheno"])
 parser.add_argument("--batch_size", type=int, default=128)
@@ -33,7 +37,7 @@ parser.add_argument("--accumulate_grad_batches", type=int, default=1)
 parser.add_argument("--first_nrows", type=int, default=-1)
 parser.add_argument("--model_name", type=str, default="medfuse",
                     choices=["proto_ts", "ipnet", "grud", "seft", "mtand", "dgm2",
-                             "medfuse"])
+                             "medfuse", "cnn"])
 parser.add_argument("--modeltype", type=str, default="TS_CXR",
                     choices=["TS_CXR", "TS", "CXR"],
                     help="Set the model type to use for training")
@@ -48,7 +52,7 @@ parser.add_argument("--use_multiscale", action="store_true")
 args = parser.parse_args()
 
 '''
-CUDA_VISIBLE_DEVICES=0 python train_mimic4.py --devices 1 --task ihm --batch_size 128 --model_name medfuse
+CUDA_VISIBLE_DEVICES=2 python train_mimic.py --devices 1 --dataset_name mimic3 --task ihm --batch_size 128 --model_name cnn --modeltype TS
 CUDA_VISIBLE_DEVICES=2 python train_mimic4.py --devices 1 --task pheno --batch_size 128 --model_name medfuse
 '''
 
@@ -75,14 +79,28 @@ def cli_main():
         elif args.task == "pheno":
             args.period_length = 24
 
-        dm = MIMIC4DataModule(mimic_cxr_dir=str(MIMIC_CXR_JPG_PATH),
-                              file_path=str(
-            ROOT_PATH / f"output_mimic4/{args.task}"),
-            modeltype=args.modeltype,
-            tt_max=args.period_length,
-            batch_size=args.batch_size,
-            num_workers=args.num_workers,
-            first_nrows=args.first_nrows)
+        if args.dataset_name == "mimic3":
+            dm = MIMIC3DataModule(
+                file_path=str(
+                    ROOT_PATH / f"output/{args.task}"),
+                modeltype=args.modeltype,
+                tt_max=args.period_length,
+                batch_size=args.batch_size,
+                num_workers=args.num_workers,
+                first_nrows=args.first_nrows)
+
+        elif args.dataset_name == "mimic4":
+            dm = MIMIC4DataModule(mimic_cxr_dir=str(MIMIC_CXR_JPG_PATH),
+                                  file_path=str(
+                ROOT_PATH / f"output_mimic4/{args.task}"),
+                modeltype=args.modeltype,
+                tt_max=args.period_length,
+                batch_size=args.batch_size,
+                num_workers=args.num_workers,
+                first_nrows=args.first_nrows)
+
+        else:
+            raise ValueError("Invalid dataset name")
 
         # define model
         if args.test_only:
@@ -130,12 +148,18 @@ def cli_main():
                     args.ckpt_path, **vars(args))
             else:
                 model = MedFuseModule(**vars(args))
+        elif args.model_name == "cnn":
+            if args.ckpt_path:
+                model = CNNModule.load_from_checkpoint(
+                    args.ckpt_path, **vars(args))
+            else:
+                model = CNNModule(**vars(args))
         else:
             raise ValueError("Invalid model name")
 
         # initialize trainer
         run_name = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-        run_name = f"mimic4_{args.task}_{args.model_name}_{run_name}"
+        run_name = f"mimic_{args.task}_{args.model_name}_{run_name}"
         os.makedirs(ROOT_PATH / "log/ckpts", exist_ok=True)
         logger = WandbLogger(
             name=run_name,

@@ -9,7 +9,7 @@ import torch.nn.functional as F
 import torch
 from cmehr.models.mimic4.base_model import MIMIC4LightningModule
 from cmehr.backbone.pretrained import get_biovil_t_image_encoder
-from cmehr.models.mimic3.UTDE_modules import multiTimeAttention
+from cmehr.models.mimic4.UTDE_modules import multiTimeAttention
 from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence
 
 

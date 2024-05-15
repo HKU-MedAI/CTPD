@@ -9,9 +9,9 @@ from lightning import LightningModule
 from lightning.pytorch.utilities.types import STEP_OUTPUT
 
 
-class MIMIC4LightningModule(LightningModule):
+class MIMIC3LightningModule(LightningModule):
     '''
-    Base lightning model on MIMIC IV dataset.
+    Base lightning model on MIMIC III dataset.
     '''
 
     def __init__(self,
@@ -54,15 +54,12 @@ class MIMIC4LightningModule(LightningModule):
             raise ValueError("Unknown task")
 
     def training_step(self, batch: Dict, batch_idx: int):
-        if self.modeltype == "TS_CXR":
+        if self.modeltype == "TS_Text":
             loss = self(
                 x_ts=batch["ts"],  # type ignore
                 x_ts_mask=batch["ts_mask"],
                 ts_tt_list=batch["ts_tt"],
                 reg_ts=batch["reg_ts"],
-                cxr_imgs_sequences=batch["cxr_imgs"],
-                cxr_time_sequences=batch["cxr_time"],
-                cxr_time_mask_sequences=batch["cxr_time_mask"],
                 labels=batch["label"],
             )
         elif self.modeltype == "TS":
@@ -71,13 +68,6 @@ class MIMIC4LightningModule(LightningModule):
                 x_ts_mask=batch["ts_mask"],
                 ts_tt_list=batch["ts_tt"],
                 reg_ts=batch["reg_ts"],
-                labels=batch["label"],
-            )
-        elif self.modeltype == "CXR":
-            loss = self(
-                cxr_imgs_sequences=batch["cxr_imgs"],
-                cxr_time_sequences=batch["cxr_time"],
-                cxr_time_mask_sequences=batch["cxr_time_mask"],
                 labels=batch["label"],
             )
         else:
@@ -99,9 +89,6 @@ class MIMIC4LightningModule(LightningModule):
                 x_ts_mask=batch["ts_mask"],
                 ts_tt_list=batch["ts_tt"],
                 reg_ts=batch["reg_ts"],
-                cxr_imgs_sequences=batch["cxr_imgs"],
-                cxr_time_sequences=batch["cxr_time"],
-                cxr_time_mask_sequences=batch["cxr_time_mask"],
             )
         elif self.modeltype == "TS":
             logits = self(
@@ -109,12 +96,6 @@ class MIMIC4LightningModule(LightningModule):
                 x_ts_mask=batch["ts_mask"],
                 ts_tt_list=batch["ts_tt"],
                 reg_ts=batch["reg_ts"],
-            )
-        elif self.modeltype == "CXR":
-            logits = self(
-                cxr_imgs_sequences=batch["cxr_imgs"],
-                cxr_time_sequences=batch["cxr_time"],
-                cxr_time_mask_sequences=batch["cxr_time_mask"],
             )
         else:
             raise NotImplementedError
@@ -129,16 +110,12 @@ class MIMIC4LightningModule(LightningModule):
         self.test_step_outputs = []
 
     def test_step(self, batch: Dict, batch_idx: int) -> STEP_OUTPUT:
-
         if self.modeltype == "TS_CXR":
             logits = self(
                 x_ts=batch["ts"],  # type ignore
                 x_ts_mask=batch["ts_mask"],
                 ts_tt_list=batch["ts_tt"],
-                reg_ts=batch["reg_ts"],
-                cxr_imgs_sequences=batch["cxr_imgs"],
-                cxr_time_sequences=batch["cxr_time"],
-                cxr_time_mask_sequences=batch["cxr_time_mask"],
+                reg_ts=batch["reg_ts"]
             )
         elif self.modeltype == "TS":
             logits = self(
@@ -257,6 +234,149 @@ class MIMIC4LightningModule(LightningModule):
             new_metrics_dict[f"test_{k}"] = v
         self.log_dict(new_metrics_dict, on_epoch=True, sync_dist=True,
                       batch_size=len(self.test_step_outputs))
+
+    def configure_optimizers(self):
+        optimizer = torch.optim.Adam(
+            self.parameters(), lr=self.ts_learning_rate)
+        lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
+            optimizer, factor=0.4, patience=3, verbose=True, mode='max')
+        scheduler = {
+            'scheduler': lr_scheduler,
+            'monitor': 'val_auprc' if self.task == 'ihm' else 'val_auroc_macro',
+            'interval': 'epoch',
+            'frequency': 1
+        }
+        return [optimizer], [scheduler]
+
+
+class MIMIC4LightningModule(MIMIC3LightningModule):
+    '''
+    Base lightning model on MIMIC IV dataset.
+    '''
+
+    def __init__(self,
+                 task: str = "ihm",
+                 modeltype: str = "TS_CXR",
+                 max_epochs: int = 10,
+                 img_learning_rate: float = 1e-4,
+                 ts_learning_rate: float = 4e-4,
+                 period_length: int = 48,
+                 num_labels: int = 2,
+                 *args,
+                 **kwargs
+                 ):
+
+        super().__init__(task=task, modeltype=modeltype, max_epochs=max_epochs,
+                         img_learning_rate=img_learning_rate, ts_learning_rate=ts_learning_rate,
+                         period_length=period_length, num_labels=num_labels)
+
+    def training_step(self, batch: Dict, batch_idx: int):
+        if self.modeltype == "TS_CXR":
+            loss = self(
+                x_ts=batch["ts"],  # type ignore
+                x_ts_mask=batch["ts_mask"],
+                ts_tt_list=batch["ts_tt"],
+                reg_ts=batch["reg_ts"],
+                cxr_imgs_sequences=batch["cxr_imgs"],
+                cxr_time_sequences=batch["cxr_time"],
+                cxr_time_mask_sequences=batch["cxr_time_mask"],
+                labels=batch["label"],
+            )
+        elif self.modeltype == "TS":
+            loss = self(
+                x_ts=batch["ts"],  # type ignore
+                x_ts_mask=batch["ts_mask"],
+                ts_tt_list=batch["ts_tt"],
+                reg_ts=batch["reg_ts"],
+                labels=batch["label"],
+            )
+        elif self.modeltype == "CXR":
+            loss = self(
+                cxr_imgs_sequences=batch["cxr_imgs"],
+                cxr_time_sequences=batch["cxr_time"],
+                cxr_time_mask_sequences=batch["cxr_time_mask"],
+                labels=batch["label"],
+            )
+        else:
+            raise NotImplementedError
+
+        batch_size = batch["ts"].size(0)
+        self.log("train_loss", loss, on_step=True, on_epoch=True,
+                 sync_dist=True, prog_bar=True, batch_size=batch_size)
+
+        return loss
+
+    def on_validation_epoch_start(self) -> None:
+        self.validation_step_outputs = []
+
+    def validation_step(self, batch: Dict, batch_idx: int) -> STEP_OUTPUT:
+        if self.modeltype == "TS_CXR":
+            logits = self(
+                x_ts=batch["ts"],  # type ignore
+                x_ts_mask=batch["ts_mask"],
+                ts_tt_list=batch["ts_tt"],
+                reg_ts=batch["reg_ts"],
+                cxr_imgs_sequences=batch["cxr_imgs"],
+                cxr_time_sequences=batch["cxr_time"],
+                cxr_time_mask_sequences=batch["cxr_time_mask"],
+            )
+        elif self.modeltype == "TS":
+            logits = self(
+                x_ts=batch["ts"],  # type ignore
+                x_ts_mask=batch["ts_mask"],
+                ts_tt_list=batch["ts_tt"],
+                reg_ts=batch["reg_ts"],
+            )
+        elif self.modeltype == "CXR":
+            logits = self(
+                cxr_imgs_sequences=batch["cxr_imgs"],
+                cxr_time_sequences=batch["cxr_time"],
+                cxr_time_mask_sequences=batch["cxr_time_mask"],
+            )
+        else:
+            raise NotImplementedError
+
+        return_dict = {
+            "logits": logits.detach().cpu().numpy(),
+            "label": batch["label"].detach().cpu().numpy()
+        }
+        self.validation_step_outputs.append(return_dict)
+
+    def on_test_epoch_start(self) -> None:
+        self.test_step_outputs = []
+
+    def test_step(self, batch: Dict, batch_idx: int) -> STEP_OUTPUT:
+        if self.modeltype == "TS_CXR":
+            logits = self(
+                x_ts=batch["ts"],  # type ignore
+                x_ts_mask=batch["ts_mask"],
+                ts_tt_list=batch["ts_tt"],
+                reg_ts=batch["reg_ts"],
+                cxr_imgs_sequences=batch["cxr_imgs"],
+                cxr_time_sequences=batch["cxr_time"],
+                cxr_time_mask_sequences=batch["cxr_time_mask"],
+            )
+        elif self.modeltype == "TS":
+            logits = self(
+                x_ts=batch["ts"],  # type ignore
+                x_ts_mask=batch["ts_mask"],
+                ts_tt_list=batch["ts_tt"],
+                reg_ts=batch["reg_ts"],
+            )
+        elif self.modeltype == "CXR":
+            logits = self(
+                cxr_imgs_sequences=batch["cxr_imgs"],
+                cxr_time_sequences=batch["cxr_time"],
+                cxr_time_mask_sequences=batch["cxr_time_mask"],
+            )
+        else:
+            raise NotImplementedError
+
+        return_dict = {
+            "logits": logits.detach().cpu().numpy(),
+            "label": batch["label"].detach().cpu().numpy()
+        }
+        self.test_step_outputs.append(return_dict)
 
     def configure_optimizers(self):
         if self.modeltype == "TS_CXR":

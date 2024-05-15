@@ -1,46 +1,41 @@
 '''
-This script is used to format MIMIC 3 into irregular time series following: 
+This script is used to format MIMIC 4 into irregular time series following: 
 https://arxiv.org/abs/2210.12156 (ICML 2023)
 '''
 import os
 import argparse
 import json
 import pickle
+import pandas as pd
 import ipdb
+from pyparsing import col
 from tqdm import tqdm
 import numpy as np
 import statistics as stat
+from typing import List, Dict
 
-from cmehr.ext.mimic3benchmark.readers import InHospitalMortalityReader, PhenotypingReader, Reader
-from cmehr.ext.mimic3models.preprocessing import Normalizer
-import cmehr.ext.mimic3models.common_utils as common_utils
-from cmehr.ext.mimic3models.preprocessing import Discretizer
+from cmehr.ext.mimic4benchmark.readers import SurvivalReader, Reader
+from cmehr.ext.mimic4models.preprocessing import Normalizer
+import cmehr.ext.mimic4models.common_utils as common_utils
+from cmehr.ext.mimic4models.preprocessing import Discretizer
 from cmehr.preprocess.text_utils import TextReader
 from cmehr.paths import *
 
 
 parser = argparse.ArgumentParser(
-    description='Create irregular time series from MIMIC 3')
-# parser.add_argument("--period_length", default=48, type=int,
-#                     choices=[48, 24],
-#                     help="period length of reader.")
-parser.add_argument("--task", default='pheno', type=str,
-                    choices=["ihm", "pheno"],
+    description='Create irregular time series from MIMIC 4')
+parser.add_argument("--task", default='survival', type=str,
+                    choices=["survival"],
                     help="task name to create data")
-parser.add_argument("--output_dir", type=str, default=ROOT_PATH / "output")
+parser.add_argument("--output_dir", type=str,
+                    default=ROOT_PATH / "output_mimic4")
 parser.add_argument('--timestep', type=float, default=1.0,
                     help="fixed timestep used in the dataset")
 parser.add_argument('--imputation', type=str, default='previous')
 parser.add_argument('--small_part', dest='small_part', action='store_true')
 args = parser.parse_args()
 
-
-if args.task == 'ihm':
-    args.period_length = 48
-elif args.task == 'pheno':
-    args.period_length = 24
-else:
-    raise ValueError("Task is invalid")
+args.period_length = 48
 
 output_dir = args.output_dir / args.task
 os.makedirs(output_dir, exist_ok=True)
@@ -54,9 +49,9 @@ class Discretizer_multi(Discretizer):
 
     def __init__(self, timestep=0.8, store_masks=True, impute_strategy='zero', start_time='zero',
                  config_path=str(
-                     ROOT_PATH / "cmehr/resources/mimic3/discretizer_config.json"),
+                     ROOT_PATH / "cmehr/resources/mimic4/discretizer_config.json"),
                  channel_path=str(
-                     ROOT_PATH / "cmehr/resources/mimic3/channel_info.json")
+                     ROOT_PATH / "cmehr/resources/mimic4/channel_info.json")
                  ):
         super(Discretizer_multi, self).__init__(
             timestep, store_masks, impute_strategy, start_time, config_path)
@@ -100,7 +95,6 @@ class Discretizer_multi(Discretizer):
         #     else:
         #         end_pos[i] = begin_pos[i] + 1
         #     cur_len = end_pos[i]
-
         data = np.zeros(shape=(N_bins, N_channels), dtype=float)
         # data = np.zeros(shape=(N_bins, cur_len), dtype=float)
         mask = np.zeros(shape=(N_bins, N_channels), dtype=int)
@@ -218,7 +212,8 @@ def save_data(reader: Reader,
     ret = common_utils.read_chunk(reader, N)
     irg_data = ret["X"]
     ts = ret["t"]
-    labels = ret["y"]
+    survival_time = ret["st"]
+    labels = ret["c"]
     names = ret["name"]
     # procesed by discretizer
     reg_data = [discretizer.transform(X, end=t)[0]
@@ -226,7 +221,7 @@ def save_data(reader: Reader,
 
     with open(os.path.join(outputdir, f"ts_{mode}.pkl"), 'wb') as f:
         # Write the processed data to pickle file so it is faster to just read later
-        pickle.dump((irg_data, reg_data, labels, names), f)
+        pickle.dump((irg_data, reg_data, survival_time, labels, names), f)
 
     return
 
@@ -236,18 +231,18 @@ def extract_irregular(dataPath_in, dataPath_out):
 
     # Opening JSON file
     channel_info_file = open(str(
-        ROOT_PATH / "cmehr/resources/mimic3/channel_info.json"))
+        ROOT_PATH / "cmehr/resources/mimic4/channel_info.json"))
     channel_info = json.load(channel_info_file)
 
     dis_config_file = open(str(
-        ROOT_PATH / "cmehr/resources/mimic3/discretizer_config.json"))
+        ROOT_PATH / "cmehr/resources/mimic4/discretizer_config.json"))
     dis_config = json.load(dis_config_file)
 
     channel_name = dis_config['id_to_channel']
     is_catg = dis_config['is_categorical_channel']
 
     with open(dataPath_in, 'rb') as f:
-        ireg_data, reg_data, y, names = pickle.load(f)
+        ireg_data, reg_data, st, y, names = pickle.load(f)
 
     data_irregular = []
     for p_id, x, in tqdm(enumerate(ireg_data), total=len(ireg_data), desc="Extract irregular time series"):
@@ -280,6 +275,7 @@ def extract_irregular(dataPath_in, dataPath_out):
         data_i['reg_ts'] = reg_data[p_id]
         data_i['name'] = names[p_id]
         data_i['label'] = y[p_id]
+        data_i['survival_time'] = st[p_id]
         data_i['ts_tt'] = tt
         data_i['irg_ts'] = np.array(features_list)
         data_i['irg_ts_mask'] = np.array(features_mask_list)
@@ -319,6 +315,7 @@ def mean_std(dataPath_in, dataPath_out):
                 # don't care about the mask
                 reg_feature_list[f_idx].append(val)
 
+    # note that only 15 clinical features are found in mimic iv.
     irg_means = []
     irg_stds = []
     reg_means = []
@@ -374,78 +371,105 @@ def diff_float(time1, time2):
     return h / 60.0
 
 
-def get_time_to_end_diffs(times, st, endtime=49):
-    timetoends = []
-    difftimes = []
-    et = np.datetime64(st) + np.timedelta64(endtime, 'h')
-    for t in times:
-        time = np.datetime64(t)
-        dt = diff_float(time, et)
-        assert dt >= 0  # delta t should be positive
-        difftimes.append(dt)
-    timetoends.append(difftimes)
-    return timetoends
+# def get_time_to_end_diffs(times, st, endtime=49):
+#     timetoends = []
+#     difftimes = []
+#     et = np.datetime64(st) + np.timedelta64(endtime, 'h')
+#     for t in times:
+#         time = np.datetime64(t)
+#         dt = diff_float(time, et)
+#         assert dt >= 0  # delta t should be positive
+#         difftimes.append(dt)
+#     timetoends.append(difftimes)
+#     return timetoends
 
 
-def merge_text_ts(textdict, timedict, start_times, tslist, period_length, dataPath_out):
+# def merge_text_ts(textdict, timedict, start_times, tslist, period_length, dataPath_out):
+#     suceed = 0
+#     missing = 0
+#     new_tslist = []
+#     for idx, ts_dict in enumerate(tslist):
+#         name = ts_dict['name']
+#         if name in textdict:
+#             ts_dict['text_data'] = textdict[name]
+#             ts_dict['text_time_to_end'] = get_time_to_end_diffs(
+#                 timedict[name], start_times[name], endtime=period_length+1)[0]
+#             suceed += 1
+#             new_tslist.append(ts_dict)
+#         else:
+#             missing += 1
+
+#     print("Suceed Merging: ", suceed)
+#     print("Missing Merging: ", missing)
+
+#     with open(dataPath_out, 'wb') as f:
+#         pickle.dump(new_tslist, f)
+
+#     return
+
+
+def merge_cxr(cxr_csv_file: str, list_csv_file: str, ts_data: List, period_length: int, dataPath_out: str):
+    list_csv_df = pd.read_csv(list_csv_file)
+    name_stay_id_dict = dict(
+        zip(list_csv_df['stay'], list_csv_df['stay_id']))
+    cxr_df = pd.read_csv(cxr_csv_file)
+    new_ts_list = []
     suceed = 0
-    missing = 0
-    new_tslist = []
-    for idx, ts_dict in enumerate(tslist):
+    for idx, ts_dict in tqdm(enumerate(ts_data), total=len(ts_data), desc="Merge CXR data"):
         name = ts_dict['name']
-        if name in textdict:
-            ts_dict['text_data'] = textdict[name]
-            ts_dict['text_time_to_end'] = get_time_to_end_diffs(
-                timedict[name], start_times[name], endtime=period_length+1)[0]
-            suceed += 1
-            new_tslist.append(ts_dict)
-        else:
-            missing += 1
+        stay_id = name_stay_id_dict[name]
+        cxr_data = cxr_df[cxr_df['stay_id'] == stay_id]
+        cxr_data = cxr_data.sort_values(by=['StudyDateTime'])
+
+        if len(cxr_data) == 0:
+            continue
+
+        ts_dict['cxr_path'] = cxr_data['path'].values.tolist()
+        cxr_time = pd.to_datetime(
+            cxr_data['StudyDateTime'], format="%Y-%m-%d %H:%M:%S")
+        in_time = pd.to_datetime(
+            cxr_data['intime'], format="%Y-%m-%d %H:%M:%S")
+        ts_dict['cxr_time'] = (cxr_time - in_time).values / \
+            np.timedelta64(1, 'h')
+
+        suceed += 1
+        new_ts_list.append(ts_dict)
 
     print("Suceed Merging: ", suceed)
-    print("Missing Merging: ", missing)
+    print("Missing Merging: ", len(ts_data) - suceed)
 
     with open(dataPath_out, 'wb') as f:
-        pickle.dump(new_tslist, f)
+        pickle.dump(new_ts_list, f)
 
     return
 
 
 def create_irregular_ts():
+    config_path = ROOT_PATH / "cmehr/resources/mimic4/discretizer_config.json"
+    with open(config_path) as f:
+        config = json.load(f)
+    variables = config['id_to_channel']
 
-    if args.task == 'ihm':
-        train_reader = InHospitalMortalityReader(
-            dataset_dir=MIMIC3_IHM_PATH / "train",
-            listfile=MIMIC3_IHM_PATH / "train_listfile.csv",
-            period_length=args.period_length
-        )
+    train_reader = SurvivalReader(
+        dataset_dir=MIMIC4_BENCHMARK_PATH / "survival_prediction/train",
+        listfile=MIMIC4_BENCHMARK_PATH / "survival_prediction/train_listfile.csv",
+        period_length=args.period_length,
+        columns=variables
+    )
 
-        val_reader = InHospitalMortalityReader(
-            dataset_dir=MIMIC3_IHM_PATH / "train",
-            listfile=MIMIC3_IHM_PATH / "val_listfile.csv",
-            period_length=args.period_length
-        )
+    val_reader = SurvivalReader(
+        dataset_dir=MIMIC4_BENCHMARK_PATH / "survival_prediction/train",
+        listfile=MIMIC4_BENCHMARK_PATH / "survival_prediction/val_listfile.csv",
+        period_length=args.period_length,
+        columns=variables
+    )
 
-        test_reader = InHospitalMortalityReader(
-            dataset_dir=MIMIC3_IHM_PATH / "test",
-            listfile=MIMIC3_IHM_PATH / "test_listfile.csv",
-            period_length=args.period_length
-        )
-    elif args.task == "pheno":
-        train_reader = PhenotypingReader(
-            dataset_dir=MIMIC3_PHENO_24H_PATH / "train",
-            listfile=MIMIC3_PHENO_24H_PATH / "train_listfile.csv",
-        )
-        val_reader = PhenotypingReader(
-            dataset_dir=MIMIC3_PHENO_24H_PATH / "train",
-            listfile=MIMIC3_PHENO_24H_PATH / "val_listfile.csv",
-        )
-        test_reader = PhenotypingReader(
-            dataset_dir=MIMIC3_PHENO_24H_PATH / "test",
-            listfile=MIMIC3_PHENO_24H_PATH / "test_listfile.csv",
-        )
-    else:
-        raise ValueError("Task is invalid")
+    test_reader = SurvivalReader(
+        dataset_dir=MIMIC4_BENCHMARK_PATH / "survival_prediction/test",
+        listfile=MIMIC4_BENCHMARK_PATH / "survival_prediction/test_listfile.csv",
+        period_length=args.period_length,
+        columns=variables
+    )
 
     discretizer = Discretizer_multi(timestep=float(args.timestep),
                                     store_masks=True,
@@ -461,16 +485,10 @@ def create_irregular_ts():
 
     # choose here which columns to standardize
     normalizer = Normalizer(fields=cont_channels)
-    if args.task == 'ihm':
-        normalizer_state = str(
-            ROOT_PATH /
-            f"cmehr/ext/mimic3models/in_hospital_mortality/ihm_ts{args.timestep}.input_str-{args.imputation}.start_time-zero.normalizer"
-        )
-    elif args.task == "pheno":
-        normalizer_state = str(
-            ROOT_PATH /
-            f"cmehr/ext/mimic3models/phenotyping/ph_ts{args.timestep}.input_str-{args.imputation}.start_time-zero.normalizer"
-        )
+    normalizer_state = str(
+        ROOT_PATH /
+        f"cmehr/ext/mimic4models/in_hospital_mortality/ihm_ts{args.timestep}.input_str:{args.imputation}.start_time:zero.normalizer"
+    )
     normalizer.load_params(normalizer_state)
 
     print("Step 1: Load regular time series data")
@@ -502,31 +520,6 @@ def create_irregular_ts():
             os.path.join(output_dir, f"norm_ts_{mode}.pkl"),
             os.path.join(output_dir, 'mean_std.pkl')
         )
-
-    train_textdata_fixed = MIMIC3_BENCHMARK_PATH / "train_text_fixed"
-    train_starttime_path = MIMIC3_BENCHMARK_PATH / "train_starttime.pkl"
-    test_textdata_fixed = MIMIC3_BENCHMARK_PATH / "test_text_fixed"
-    test_starttime_path = MIMIC3_BENCHMARK_PATH / "test_starttime.pkl"
-
-    print("Step 5: Load Text data")
-    for mode in ['train', 'val', 'test']:
-        with open(os.path.join(output_dir, f"norm_ts_{mode}.pkl"), 'rb') as f:
-            tsdata = pickle.load(f)
-
-        names = [data['name'] for data in tsdata]
-
-        if (mode == 'train') or (mode == 'val'):
-            text_reader = TextReader(
-                train_textdata_fixed, train_starttime_path)
-        else:
-            text_reader = TextReader(test_textdata_fixed, test_starttime_path)
-
-        data_text, data_times, data_time = text_reader.read_all_text_append_json(
-            names, args.period_length)
-
-        merge_text_ts(data_text, data_times, data_time, tsdata,
-                      args.period_length,
-                      os.path.join(output_dir, f"{mode}_p2x_data.pkl"))
 
 
 if __name__ == '__main__':

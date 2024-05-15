@@ -8,7 +8,7 @@ from typing import Optional, List
 from torch import nn
 import torch.nn.functional as F
 import torch
-from cmehr.models.mimic3.UTDE_modules import multiTimeAttention, gateMLP
+from cmehr.models.mimic4.UTDE_modules import multiTimeAttention, gateMLP
 from cmehr.models.mimic4.base_model import MIMIC4LightningModule
 from cmehr.models.mimic4.position_encode import PositionalEncoding1D
 

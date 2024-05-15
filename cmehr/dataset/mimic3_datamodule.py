@@ -217,13 +217,15 @@ def TextTSIrgcollate_fn(batch):
     }
 
 
-class EHRDataModule(LightningDataModule):
+class MIMIC3DataModule(LightningDataModule):
     def __init__(self,
                  batch_size: int = 4,
                  num_workers: int = 1,
+                 modeltype: str = "TS_Text",
                  file_path: str = str(ROOT_PATH / "output/ihm"),
                  bert_type: str = "yikuan8/Clinical-Longformer",
                  max_length: int = 1024,
+                 tt_max: int = 48,
                  first_nrows: Optional[int] = None
                  ) -> None:
         super().__init__()
@@ -233,14 +235,18 @@ class EHRDataModule(LightningDataModule):
         self.file_path = file_path
         self.bert_type = bert_type
         self.max_length = max_length
+        self.modeltype = modeltype
         self.first_nrows = first_nrows
+        self.tt_max = tt_max
 
     def train_dataloader(self) -> TRAIN_DATALOADERS:
         dataset = TSNote_Irg(
             file_path=self.file_path,
             split="train",
             bert_type=self.bert_type,
+            modeltype=self.modeltype,
             max_length=self.max_length,
+            tt_max=self.tt_max,
             first_nrows=self.first_nrows
         )
         dataloader = DataLoader(dataset=dataset,
@@ -255,7 +261,9 @@ class EHRDataModule(LightningDataModule):
             file_path=self.file_path,
             split="val",
             bert_type=self.bert_type,
+            modeltype=self.modeltype,
             max_length=self.max_length,
+            tt_max=self.tt_max,
             first_nrows=self.first_nrows
         )
         dataloader = DataLoader(dataset=dataset,
@@ -271,6 +279,8 @@ class EHRDataModule(LightningDataModule):
             split="test",
             bert_type=self.bert_type,
             max_length=self.max_length,
+            modeltype=self.modeltype,
+            tt_max=self.tt_max,
             first_nrows=self.first_nrows
         )
         dataloader = DataLoader(dataset=dataset,
@@ -282,15 +292,7 @@ class EHRDataModule(LightningDataModule):
 
 
 if __name__ == "__main__":
-    # dataset = TSNote_Irg(
-    #     file_path=str(ROOT_PATH / "output/pheno"),
-    #     split="val",
-    #     bert_type="yikuan8/Clinical-Longformer",
-    #     max_length=1024,
-    #     first_nrows=None
-    # )
-    # sample = dataset[48]
-    datamodule = EHRDataModule(
+    datamodule = MIMIC3DataModule(
         file_path=str(ROOT_PATH / "output/pheno"),
     )
     batch = dict()
