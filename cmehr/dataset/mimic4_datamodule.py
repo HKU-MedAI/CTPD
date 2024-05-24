@@ -106,10 +106,10 @@ class MIMIC4_Dataset(Dataset):
         ts_mask = data_detail['irg_ts_mask']
 
         label = data_detail["label"]
-        ts_tt = data_detail["ts_tt"]
         # text_time_to_end = data_detail["text_time_to_end"]
-        # TODO: why do we need two reg_ts?
-        reg_ts = F_impute(ts, ts_tt, ts_mask, 1, self.tt_max)
+        ts_tt = data_detail["ts_tt"]
+        # reg_ts = F_impute(ts, ts_tt, ts_mask, 1, self.tt_max)
+        reg_ts = data_detail["reg_ts"]
         cxr_path = data_detail["cxr_path"]
         cxr_time = data_detail["cxr_time"]
 
@@ -271,23 +271,24 @@ class MIMIC4DataModule(LightningDataModule):
 
 
 if __name__ == "__main__":
-    # dataset = MIMIC4_Dataset(
-    #     mimic_cxr_dir=str(MIMIC_CXR_JPG_PATH),
-    #     file_path=str(ROOT_PATH / "output_mimic4/pheno"),
-    #     split="val",
-    #     img_transform=get_transforms(is_train=False),
-    #     first_nrows=None
-    # )
-    # sample = dataset[48]
-    datamodule = MIMIC4DataModule(
-        file_path=str(ROOT_PATH / "output_mimic4/ihm"),
-        tt_max=48
+    dataset = MIMIC4_Dataset(
+        mimic_cxr_dir=str(MIMIC_CXR_JPG_PATH),
+        file_path=str(ROOT_PATH / "output_mimic4/TS_CXR/pheno"),
+        split="val",
+        img_transform=get_transforms(is_train=False),
+        first_nrows=None
     )
-    batch = dict()
-    for batch in datamodule.val_dataloader():
-        break
-    for k, v in batch.items():
-        print(f"{k}: ", v.shape)
+    sample = dataset[48]
+
+    # datamodule = MIMIC4DataModule(
+    #     file_path=str(ROOT_PATH / "output_mimic4/TS_CXR/pheno"),
+    #     tt_max=48
+    # )
+    # batch = dict()
+    # for batch in datamodule.val_dataloader():
+    #     break
+    # for k, v in batch.items():
+    #     print(f"{k}: ", v.shape)
 
     ipdb.set_trace()
     # """

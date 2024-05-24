@@ -1,16 +1,11 @@
-import numpy as np
-from PIL import Image
 import math
 import ipdb
-from einops import rearrange
-from typing import Optional, List
 from torch import nn
 import torch.nn.functional as F
 import torch
 from cmehr.models.mimic4.base_model import MIMIC4LightningModule
-from cmehr.backbone.pretrained import get_biovil_t_image_encoder
+from cmehr.backbone.vision.pretrained import get_biovil_t_image_encoder
 from cmehr.models.mimic4.UTDE_modules import multiTimeAttention
-from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence
 
 
 class MedFuseModule(MIMIC4LightningModule):

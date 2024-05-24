@@ -1,13 +1,13 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-
+import pytorch_pretrained_bert as Bert
 from cmehr.models.mimic4.base_model import MIMIC4LightningModule
 
 import ipdb
 
 
-class RNN(MIMIC4LightningModule):
+class TransformerModule(MIMIC4LightningModule):
     def __init__(self,
                  task: str = "ihm",
                  modeltype: str = "TS",
@@ -28,39 +28,32 @@ class RNN(MIMIC4LightningModule):
         self.n_layers = n_layers
         self.hidden_dim = hidden_dim
 
-        # define an RNN with specified parameters
-        self.rnn = nn.RNN(self.input_size, self.hidden_dim,
-                          self.n_layers, batch_first=True)
-
-        # last, fully-connected layers
+        self.pre_linear = nn.Linear(self.input_size, self.hidden_dim)
+        config = Bert.modeling.BertConfig(
+            vocab_size_or_config_json_file=100, # it doesn't matter
+            num_hidden_layers=2,
+            hidden_size=self.hidden_dim,
+            num_attention_heads=4
+        )
+        self.encoder = Bert.modeling.BertEncoder(config=config)
+        self.pooler = Bert.modeling.BertPooler(config)
         self.fc = nn.Linear(hidden_dim, self.num_labels)
 
-    def init_hidden(self, batch_size):
-        hidden = torch.zeros(self.n_layers, batch_size, self.hidden_dim)
-        print('hidden: ', hidden.shape)
-        return hidden
-
     def forward(self,
-                x,
-                hidden=None,
-                labels=None):
-        # x (batch_size, seq_length, input_size)
-        # hidden (n_layers, batch_size, hidden_dim)
-        # r_out (batch_size, time_step, hidden_size)
-        batch_size = x.size(0)
-
-        if hidden is None:
-            hidden = self.init_hidden(batch_size)
-        # get RNN outputs
-        r_out, hidden = self.rnn(x, hidden)
-        print('r_out: ', r_out.shape)
-        # shape output to be (batch_size*seq_length, hidden_dim)
-        r_out = r_out[:, -1, :]
-        print('r_out: ', r_out.shape)
-
-        # get final output
-        output = self.fc(r_out)
-        print('output: ', output.shape)
+                reg_ts,
+                labels=None,
+                **kwargs):
+        
+        batch_size = reg_ts.size(0)
+        x = self.pre_linear(reg_ts)
+        attention_mask = torch.ones(x.shape[:-1]).type_as(reg_ts)
+        extended_attention_mask = attention_mask.unsqueeze(1).unsqueeze(2)
+        extended_attention_mask = extended_attention_mask.to(dtype=next(self.parameters()).dtype)  # fp16 compatibility
+        extended_attention_mask = (1.0 - extended_attention_mask) * -10000.0
+        encoded_layers = self.encoder(x, extended_attention_mask)
+        sequence_output = encoded_layers[-1]
+        pooled_output = self.pooler(sequence_output)
+        output = self.fc(pooled_output)
 
         if self.task == 'ihm':
             if labels != None:
@@ -71,8 +64,6 @@ class RNN(MIMIC4LightningModule):
         elif self.task == 'pheno':
             if labels != None:
                 labels = labels.float()
-                print('labels: ', labels)
-                print('output: ', output)
                 ce_loss = self.loss_fct1(output, labels)
                 return ce_loss
             return torch.sigmoid(output)
@@ -84,7 +75,7 @@ if __name__ == "__main__":
     from cmehr.dataset.mimic4_datamodule import MIMIC4DataModule
 
     datamodule = MIMIC4DataModule(
-        file_path=str(ROOT_PATH / "output_mimic4/ihm"),
+        file_path=str(ROOT_PATH / "output_mimic4/TS_CXR/ihm"),
         modeltype="TS",
         tt_max=48
     )
@@ -104,12 +95,10 @@ if __name__ == "__main__":
     note_time_mask: torch.Size([4, 5])
     label: torch.Size([4])
     """
-    model = RNN(
-        use_multiscale=False,
-        use_prototype=False
+    model = TransformerModule(
     )
     loss = model(
-        x=batch["reg_ts"],
-        labels=None
+        reg_ts=batch["reg_ts"],
+        labels=batch["label"]
     )
     print(loss)

@@ -2,20 +2,25 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from cmehr.models.mimic4.base_model import MIMIC3LightningModule
+from cmehr.models.mimic4.base_model import MIMIC4LightningModule
+
+from cmehr.backbone.time_series.inceptiontime import InceptionTimeFeatureExtractor
+from cmehr.backbone.time_series.resnet import ResNetFeatureExtractor
+from cmehr.backbone.time_series.pooling import MILConjunctivePooling, MILAdditivePooling
 
 import ipdb
 
 
-class CNNModule(MIMIC3LightningModule):
+class MILLETModule(MIMIC4LightningModule):
     def __init__(self,
                  task: str = "ihm",
                  modeltype: str = "TS",
+                 backbone: str = "resnet",
                  max_epochs: int = 10,
                  img_learning_rate: float = 1e-4,
                  ts_learning_rate: float = 4e-4,
                  period_length: int = 48,
-                 orig_reg_d_ts: int = 17,
+                 orig_reg_d_ts: int = 30,
                  hidden_dim: int = 128,
                  n_layers: int = 3,
                  *args,
@@ -25,34 +30,29 @@ class CNNModule(MIMIC3LightningModule):
                          period_length=period_length)
 
         self.input_size = orig_reg_d_ts
-        self.n_layers = n_layers
         self.hidden_dim = hidden_dim
 
-        self.conv1 = nn.Conv1d(self.input_size, 32, kernel_size=3, padding=1)
-        self.conv2 = nn.Conv1d(32, 64, kernel_size=3, padding=1)
-        self.conv3 = nn.Conv1d(64, 128, kernel_size=3, padding=1)
-        self.pool = nn.MaxPool1d(2)
-        self.dropout = nn.Dropout(0.5)
-        self.fc1 = nn.Linear(128 * self.tt_max // 8, 100)
-        self.fc2 = nn.Linear(100, self.num_labels)
+        # self.feature_extractor = InceptionTimeFeatureExtractor(orig_reg_d_ts, out_channels=hidden_dim // 4)
+        self.feature_extractor = ResNetFeatureExtractor(n_in_channels=orig_reg_d_ts)
+        dropout = 0.1
+        apply_positional_encoding = True
+        self.pool = MILConjunctivePooling(
+            self.hidden_dim,
+            self.num_labels,
+            dropout=dropout,
+            apply_positional_encoding=apply_positional_encoding,
+        )
 
     def forward(self,
                 reg_ts,
                 labels=None,
                 **kwargs):
-
-        x = reg_ts
-        batch_size = x.size(0)
-        x = x.permute(0, 2, 1)
-
-        x = self.pool(F.relu(self.conv1(x)))
-        x = self.pool(F.relu(self.conv2(x)))
-        x = self.pool(F.relu(self.conv3(x)))
-
-        x = torch.flatten(x, 1)
-        x = self.dropout(x)
-        x = F.relu(self.fc1(x))
-        output = self.fc2(x)
+        
+        batch_size = reg_ts.size(0)
+        x = reg_ts.permute(0, 2, 1)
+        feat = self.feature_extractor(x)
+        pool_output = self.pool(feat)
+        output = pool_output["bag_logits"]
 
         if self.task == 'ihm':
             if labels != None:
@@ -69,13 +69,12 @@ class CNNModule(MIMIC3LightningModule):
 
 
 if __name__ == "__main__":
-    from torch.utils.data import DataLoader
     from cmehr.paths import *
-    # from cmehr.dataset.mimic4_datamodule import MIMIC4DataModule
-    from cmehr.dataset.mimic3_datamodule import MIMIC3DataModule
+    from cmehr.dataset.mimic4_datamodule import MIMIC4DataModule
 
-    datamodule = MIMIC3DataModule(
-        file_path=str(ROOT_PATH / "output/ihm"),
+    datamodule = MIMIC4DataModule(
+        file_path=str(ROOT_PATH / "output_mimic4/TS_CXR/ihm"),
+        modeltype="TS",
         tt_max=48
     )
     batch = dict()
@@ -94,12 +93,10 @@ if __name__ == "__main__":
     note_time_mask: torch.Size([4, 5])
     label: torch.Size([4])
     """
-    model = CNNModule(
-        task="ihm",
-        modeltype="TS",
-        tt_max=48)
+    model = MILLETModule(
+    )
     loss = model(
-        x=batch["reg_ts"],
+        reg_ts=batch["reg_ts"],
         labels=batch["label"]
     )
     print(loss)

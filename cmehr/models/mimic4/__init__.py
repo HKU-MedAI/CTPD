@@ -1,4 +1,4 @@
-from .rnn import RNN
+from .rnn_model import RNNModule
 from .protots_model import ProtoTSModel
 from .ipnet import IPNetModule
 from .grud_model import GRUDModule
@@ -7,3 +7,7 @@ from .mtand_model import MTANDModule
 from .dgm2_model import DGM2OModule
 from .medfuse_model import MedFuseModule
 from .cnn_model import CNNModule
+from .lstm_model import LSTMModule
+from .transformer_model import TransformerModule
+from .millet_model import MILLETModule
+from .otk_model import OTKModule
