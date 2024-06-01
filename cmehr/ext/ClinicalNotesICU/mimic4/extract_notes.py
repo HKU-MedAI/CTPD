@@ -4,15 +4,16 @@ import re
 import argparse
 import os
 import pandas as pd
+from tqdm import tqdm
 import ipdb
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--note_csv', type=str,
-                    default='/disk1/**/EHR_dataset/mimiciv/note/discharge.csv.gz')
+                    default='/disk1/fywang/EHR_dataset/mimiciv/note/discharge.csv.gz')
 args = parser.parse_args()
 
 """
-Preprocess PubMed abstracts or MIMIC-III reports
+Preprocess PubMed abstracts or MIMIC-IV reports
 """
 
 SECTION_TITLES = re.compile(
@@ -153,21 +154,64 @@ max           1.0        1.0       1.0
 '''
 
 admission_df = pd.read_csv(
-    "/disk1/**/EHR_dataset/mimiciv/hosp/admissions.csv.gz"
+    "/disk1/fywang/EHR_dataset/mimiciv/hosp/admissions.csv"
 )
-subject_ids = list(admission_df.subject_id.unique())
+
+mimic_iv_benchmark_path = "/disk1/fywang/EHR_dataset/mimiciv_benchmark"
+split = "train"
+all_files = os.listdir(os.path.join(mimic_iv_benchmark_path, split))
+all_folders = list(filter(lambda x: x.isdigit(), all_files))
+output_folder = os.path.join(
+    mimic_iv_benchmark_path, f"{split}_note")
+os.makedirs(output_folder, exist_ok=True)
+sentence_lens = []
+hadm_id2index = {}
 
 suceed = 0
 failed = 0
-patient_id = subject_ids[100]
-# for patient_id in subject_ids:
-#     sliced = df2[df2.subject_id == patient_id]
-#     if sliced.shape[0] == 0:
-#         print("No notes for PATIENT_ID : {}".format(patient_id))
-#         failed += 1
-#         continue
-#     sliced.sort_values(by='charttime', inplace=True)
+failed_exception = 0
+for folder in tqdm(all_folders, total=len(all_folders), desc="Extracting note"):
+    try:
+        patient_id = int(folder)
+        sliced = df2[df2.subject_id == patient_id]
+        if sliced.shape[0] == 0:
+            print("No notes for PATIENT_ID : {}".format(patient_id))
+            failed += 1
+            continue
+        sliced.sort_values(by='charttime')
 
-#     admission_df[admission_df.subject_id == patient_id]
-# It seems that one admission only have one clinical note in mimic4, which is different from mimic3.
-ipdb.set_trace()
+        # get the HADM_IDs from the stays.csv.
+        stays_path = os.path.join(mimic_iv_benchmark_path, split, folder, 'stays.csv')
+        stays_df = pd.read_csv(stays_path)
+        hadm_ids = list(stays_df.hadm_id.values)
+
+        for ind, hid in enumerate(hadm_ids):
+            hadm_id2index[str(hid)] = str(ind)
+
+            sliced = sliced[sliced.hadm_id == hid]
+            #text = sliced.TEXT.str.cat(sep=' ')
+            #text = "*****".join(list(preprocess_mimic(text)))
+            data_json = {}
+            for index, row in sliced.iterrows():
+                #f.write("%s\t%s\n" % (row['CHARTTIME'], getText(row['TEXT'])))
+                # The exact time of the note
+                data_json["{}".format(row['charttime'])
+                            ] = getSentences(row['text'])
+
+            with open(os.path.join(output_folder, folder + '_' + str(ind+1)), 'w') as f:
+                json.dump(data_json, f)
+
+        suceed += 1
+    except:
+        import traceback
+        traceback.print_exc()
+        print("Failed with Exception FOR Patient ID: %s", folder)
+        failed_exception += 1
+
+print("Sucessfully Completed: %d/%d" % (suceed, len(all_folders)))
+print("No Notes for Patients: %d/%d" % (failed, len(all_folders)))
+print("Failed with Exception: %d/%d" % (failed_exception, len(all_folders)))
+
+
+with open(os.path.join(output_folder, f'{split}_hadm_id2index'), 'w') as f:
+    json.dump(hadm_id2index, f)

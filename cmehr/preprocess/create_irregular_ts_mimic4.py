@@ -33,7 +33,7 @@ parser.add_argument('--timestep', type=float, default=1.0,
                     help="fixed timestep used in the dataset")
 parser.add_argument('--imputation', type=str, default='previous')
 parser.add_argument('--small_part', dest='small_part', action='store_true')
-parser.add_argument('--modality_type', nargs="+", default=["TS"],
+parser.add_argument('--modality_type', nargs="+", default=["TS", "CXR"],
                     help="Three modalities in the dataset: time series, text, and CXR")
 args = parser.parse_args()
 
@@ -391,28 +391,39 @@ def diff_float(time1, time2):
 #     return timetoends
 
 
-# def merge_text_ts(textdict, timedict, start_times, tslist, period_length, dataPath_out):
-#     suceed = 0
-#     missing = 0
-#     new_tslist = []
-#     for idx, ts_dict in enumerate(tslist):
-#         name = ts_dict['name']
-#         if name in textdict:
-#             ts_dict['text_data'] = textdict[name]
-#             ts_dict['text_time_to_end'] = get_time_to_end_diffs(
-#                 timedict[name], start_times[name], endtime=period_length+1)[0]
-#             suceed += 1
-#             new_tslist.append(ts_dict)
-#         else:
-#             missing += 1
+def get_time_diffs(times, st):
+    difftimes = []
+    for t in times:
+        time = np.datetime64(t)
+        st = np.datetime64(st)
+        dt = diff_float(time, st)
+        # assert dt >= 0  # delta t should be positive
+        difftimes.append(dt)
+    return difftimes
 
-#     print("Suceed Merging: ", suceed)
-#     print("Missing Merging: ", missing)
 
-#     with open(dataPath_out, 'wb') as f:
-#         pickle.dump(new_tslist, f)
+def merge_text_ts(textdict, timedict, start_times, tslist, period_length, dataPath_out):
+    suceed = 0
+    missing = 0
+    new_tslist = []
+    for idx, ts_dict in enumerate(tslist):
+        name = ts_dict['name']
+        if name in textdict:
+            ts_dict['text_data'] = textdict[name]
+            ts_dict['text_time'] = get_time_diffs(
+                timedict[name], start_times[name])
+            suceed += 1
+            new_tslist.append(ts_dict)
+        else:
+            missing += 1
 
-#     return
+    print("Suceed Merging: ", suceed)
+    print("Missing Merging: ", missing)
+
+    with open(dataPath_out, 'wb') as f:
+        pickle.dump(new_tslist, f)
+
+    return
 
 
 def merge_cxr(cxr_csv_file: str, list_csv_file: str, ts_data: List, period_length: int, dataPath_out: str):
@@ -436,9 +447,11 @@ def merge_cxr(cxr_csv_file: str, list_csv_file: str, ts_data: List, period_lengt
             cxr_data['StudyDateTime'], format="%Y-%m-%d %H:%M:%S")
         in_time = pd.to_datetime(
             cxr_data['intime'], format="%Y-%m-%d %H:%M:%S")
-        ts_dict['cxr_time'] = (cxr_time - in_time).values / \
+        timediff = (cxr_time - in_time).values / \
             np.timedelta64(1, 'h')
-
+        for tdiff in timediff:
+            assert tdiff <= period_length
+        ts_dict['cxr_time'] = timediff
         suceed += 1
         new_ts_list.append(ts_dict)
 
@@ -523,38 +536,65 @@ def create_irregular_ts():
         )
     normalizer.load_params(normalizer_state)
 
-    print("Step 1: Load regular time series data")
-    save_data(train_reader, discretizer, output_dir,
-              args.small_part, mode='train')
-    save_data(val_reader, discretizer, output_dir,
-              args.small_part, mode='val')
-    save_data(test_reader, discretizer, output_dir,
-              args.small_part, mode='test')
+    # print("Step 1: Load regular time series data")
+    # save_data(train_reader, discretizer, output_dir,
+    #           args.small_part, mode='train')
+    # save_data(val_reader, discretizer, output_dir,
+    #           args.small_part, mode='val')
+    # save_data(test_reader, discretizer, output_dir,
+    #           args.small_part, mode='test')
 
-    print("Step 2: Load irregular time series data")
-    for mode in ['train', 'val', 'test']:
-        extract_irregular(
-            os.path.join(output_dir, f"ts_{mode}.pkl"),
-            os.path.join(output_dir, f"ts_{mode}.pkl")
-        )
+    # print("Step 2: Load irregular time series data")
+    # for mode in ['train', 'val', 'test']:
+    #     extract_irregular(
+    #         os.path.join(output_dir, f"ts_{mode}.pkl"),
+    #         os.path.join(output_dir, f"ts_{mode}.pkl")
+    #     )
 
-    # calculate mean,std of ts
-    print("Step 3: compute mean and std of the whole dataset")
-    mean_std(
-        os.path.join(output_dir, 'ts_train.pkl'),
-        os.path.join(output_dir, 'mean_std.pkl')
-    )
+    # # calculate mean,std of ts
+    # print("Step 3: compute mean and std of the whole dataset")
+    # mean_std(
+    #     os.path.join(output_dir, 'ts_train.pkl'),
+    #     os.path.join(output_dir, 'mean_std.pkl')
+    # )
 
-    print("Step 4: normalize the time series data")
-    for mode in ['train', 'val', 'test']:
-        normalize(
-            os.path.join(output_dir, f"ts_{mode}.pkl"),
-            os.path.join(output_dir, f"norm_ts_{mode}.pkl"),
-            os.path.join(output_dir, 'mean_std.pkl')
-        )
+    # print("Step 4: normalize the time series data")
+    # for mode in ['train', 'val', 'test']:
+    #     normalize(
+    #         os.path.join(output_dir, f"ts_{mode}.pkl"),
+    #         os.path.join(output_dir, f"norm_ts_{mode}.pkl"),
+    #         os.path.join(output_dir, 'mean_std.pkl')
+    #     )
 
+    if "Text" in args.modality_type:
+        train_textdata_fixed = MIMIC4_BENCHMARK_PATH / "train_note"
+        train_starttime_path = train_textdata_fixed / "train_starttime.pkl"
+        test_textdata_fixed = MIMIC4_BENCHMARK_PATH / "test_note"
+        test_starttime_path = test_textdata_fixed / "test_starttime.pkl"
+
+        print("Step 5: Load Text data")
+        for mode in ['train', 'val', 'test']:
+            with open(os.path.join(output_dir, f"norm_ts_{mode}.pkl"), 'rb') as f:
+                tsdata = pickle.load(f)
+
+            names = [data['name'] for data in tsdata]
+
+            if (mode == 'train') or (mode == 'val'):
+                text_reader = TextReader(
+                    train_textdata_fixed, train_starttime_path)
+            else:
+                text_reader = TextReader(
+                    test_textdata_fixed, test_starttime_path)
+
+            data_text, data_times, data_time = text_reader.read_all_text_append_json(
+                names, args.period_length)
+
+            merge_text_ts(data_text, data_times, data_time, tsdata,
+                          args.period_length,
+                          os.path.join(output_dir, f"{mode}_p2x_data.pkl"))
+            
     if "CXR" in args.modality_type:
-        print("Step 5: Load CXR data")
+        print("Step 6: Load CXR data")
         if args.task == 'ihm':
             mimic4_cxr_csv = MIMIC4_CXR_CSV_IHM
             list_csv_dir = MIMIC4_IHM_PATH
@@ -565,9 +605,13 @@ def create_irregular_ts():
             raise ValueError("Task is invalid")
 
         for mode in ['train', 'val', 'test']:
-            with open(os.path.join(output_dir, f"norm_ts_{mode}.pkl"), 'rb') as f:
-                tsdata = pickle.load(f)
-
+            if "Text" in args.modality_type:
+                # In this case, we already have the p2x data
+                with open(os.path.join(output_dir, f"{mode}_p2x_data.pkl"), 'rb') as f:
+                    tsdata = pickle.load(f)
+            else:
+                with open(os.path.join(output_dir, f"norm_ts_{mode}.pkl"), 'rb') as f:
+                    tsdata = pickle.load(f)
             merge_cxr(str(mimic4_cxr_csv), str(list_csv_dir / f"{mode}_listfile.csv"),
                       tsdata, args.period_length,
                       os.path.join(output_dir, f"{mode}_p2x_data.pkl"))

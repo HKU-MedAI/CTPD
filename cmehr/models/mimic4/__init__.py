@@ -11,3 +11,5 @@ from .lstm_model import LSTMModule
 from .transformer_model import TransformerModule
 from .millet_model import MILLETModule
 from .otk_model import OTKModule
+from .camelot_model import CAMELOTModule
+from .tslanet_model import TSLANETModule

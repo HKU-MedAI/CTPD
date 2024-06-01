@@ -15,7 +15,7 @@ class CNNModule(MIMIC3LightningModule):
                  img_learning_rate: float = 1e-4,
                  ts_learning_rate: float = 4e-4,
                  period_length: int = 48,
-                 orig_reg_d_ts: int = 17,
+                 orig_reg_d_ts: int = 30,
                  hidden_dim: int = 128,
                  n_layers: int = 3,
                  *args,
@@ -28,14 +28,35 @@ class CNNModule(MIMIC3LightningModule):
         self.n_layers = n_layers
         self.hidden_dim = hidden_dim
 
-        self.conv1 = nn.Conv1d(self.input_size, 32, kernel_size=3, padding=1)
-        self.conv2 = nn.Conv1d(32, 64, kernel_size=3, padding=1)
-        self.conv3 = nn.Conv1d(64, 128, kernel_size=3, padding=1)
-        self.pool = nn.MaxPool1d(2)
-        self.dropout = nn.Dropout(0.5)
-        self.fc1 = nn.Linear(128 * self.tt_max // 8, 100)
-        self.fc2 = nn.Linear(100, self.num_labels)
+        self.conv_block1 = nn.Sequential(
+            nn.Conv1d(self.input_size, 32, kernel_size=3,
+                      padding=1),
+            nn.ReLU(),
+            nn.MaxPool1d(kernel_size=2, stride=2),
+        )
 
+        self.conv_block2 = nn.Sequential(
+            nn.Conv1d(32, 64, kernel_size=3, padding=1),
+            nn.ReLU(),
+            nn.MaxPool1d(kernel_size=2, stride=2),
+        )
+
+        self.conv_block3 = nn.Sequential(
+            nn.Conv1d(64, self.hidden_dim, kernel_size=3, padding=1),
+            nn.ReLU(),
+            nn.MaxPool1d(kernel_size=2, stride=2),
+            nn.Dropout(0.3)
+        )
+
+        self.fc = nn.Linear(self.hidden_dim * (self.tt_max // 8), self.num_labels)
+
+    def forward_feat(self, x):
+        x = x.permute(0, 2, 1)
+        x = self.conv_block1(x) # (B, 30, 48 -> B, 32, 24)
+        x = self.conv_block2(x) # (B, 32, 24 -> B, 64, 12)
+        x = self.conv_block3(x) # (B, 64, 12 -> B, 128, 6)
+        return x
+    
     def forward(self,
                 reg_ts,
                 labels=None,
@@ -43,16 +64,9 @@ class CNNModule(MIMIC3LightningModule):
 
         x = reg_ts
         batch_size = x.size(0)
-        x = x.permute(0, 2, 1)
-
-        x = self.pool(F.relu(self.conv1(x)))
-        x = self.pool(F.relu(self.conv2(x)))
-        x = self.pool(F.relu(self.conv3(x)))
-
-        x = torch.flatten(x, 1)
-        x = self.dropout(x)
-        x = F.relu(self.fc1(x))
-        output = self.fc2(x)
+        feat = self.forward_feat(x)
+        feat = feat.view(batch_size, -1) # (B, 128, 6 -> B, 128*6)
+        output = self.fc(feat)
 
         if self.task == 'ihm':
             if labels != None:
@@ -72,10 +86,10 @@ if __name__ == "__main__":
     from torch.utils.data import DataLoader
     from cmehr.paths import *
     # from cmehr.dataset.mimic4_datamodule import MIMIC4DataModule
-    from cmehr.dataset.mimic3_datamodule import MIMIC3DataModule
+    from cmehr.dataset.mimic4_datamodule import MIMIC4DataModule
 
-    datamodule = MIMIC3DataModule(
-        file_path=str(ROOT_PATH / "output/ihm"),
+    datamodule = MIMIC4DataModule(
+        file_path=str(ROOT_PATH / "output_mimic4/TS_CXR/ihm"),
         tt_max=48
     )
     batch = dict()
@@ -99,7 +113,7 @@ if __name__ == "__main__":
         modeltype="TS",
         tt_max=48)
     loss = model(
-        x=batch["reg_ts"],
+        reg_ts=batch["reg_ts"],
         labels=batch["label"]
     )
     print(loss)

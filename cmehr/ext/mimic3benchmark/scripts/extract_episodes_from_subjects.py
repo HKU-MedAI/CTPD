@@ -67,7 +67,9 @@ for subject_dir in tqdm(os.listdir(args.subjects_root_path), desc='Iterating ove
         if episode.shape[0] == 0:
             # no data for this episode
             continue
-
+        
+        # add time elapsed since the beginning of the episode
+        # TODO: The beginning time is defined as the INTIME!
         episode = add_hours_elpased_to_events(
             episode, intime).set_index('HOURS').sort_index(axis=0)
         if stay_id in episodic_data.index:

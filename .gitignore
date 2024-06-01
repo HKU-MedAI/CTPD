@@ -166,3 +166,5 @@ log/
 output_mimic4/
 output_mimic3/
 *.pdf
+prototype_results/
+*.pt

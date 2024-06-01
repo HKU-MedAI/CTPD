@@ -21,7 +21,7 @@ from cmehr.paths import *
 
 parser = argparse.ArgumentParser(
     description='Create irregular time series from MIMIC 3')
-parser.add_argument("--task", default='pheno', type=str,
+parser.add_argument("--task", default='ihm', type=str,
                     choices=["ihm", "pheno"],
                     help="task name to create data")
 parser.add_argument("--output_dir", type=str,
@@ -30,8 +30,8 @@ parser.add_argument('--timestep', type=float, default=1.0,
                     help="fixed timestep used in the dataset")
 parser.add_argument('--imputation', type=str, default='previous')
 parser.add_argument('--small_part', dest='small_part', action='store_true')
-parser.add_argument('--modality_type', nargs="+", default=["TS"],
-                    help="Three modalities in the dataset: time series, text, and CXR")
+parser.add_argument('--modality_type', nargs="+", default=["TS", "Text"],
+                    help="Two modalities in the dataset: time series, and text")
 args = parser.parse_args()
 
 if args.task == 'ihm':
@@ -373,17 +373,28 @@ def diff_float(time1, time2):
     return h / 60.0
 
 
-def get_time_to_end_diffs(times, st, endtime=49):
-    timetoends = []
+# def get_time_to_end_diffs(times, st, endtime=49):
+#     timetoends = []
+#     difftimes = []
+#     et = np.datetime64(st) + np.timedelta64(endtime, 'h')
+#     for t in times:
+#         time = np.datetime64(t)
+#         dt = diff_float(time, et)
+#         assert dt >= 0  # delta t should be positive
+#         difftimes.append(dt)
+#     timetoends.append(difftimes)
+#     return timetoends
+
+
+def get_time_diffs(times, st):
     difftimes = []
-    et = np.datetime64(st) + np.timedelta64(endtime, 'h')
     for t in times:
         time = np.datetime64(t)
-        dt = diff_float(time, et)
-        assert dt >= 0  # delta t should be positive
+        st = np.datetime64(st)
+        dt = diff_float(time, st)
+        # assert dt >= 0  # delta t should be positive
         difftimes.append(dt)
-    timetoends.append(difftimes)
-    return timetoends
+    return difftimes
 
 
 def merge_text_ts(textdict, timedict, start_times, tslist, period_length, dataPath_out):
@@ -394,8 +405,10 @@ def merge_text_ts(textdict, timedict, start_times, tslist, period_length, dataPa
         name = ts_dict['name']
         if name in textdict:
             ts_dict['text_data'] = textdict[name]
-            ts_dict['text_time_to_end'] = get_time_to_end_diffs(
-                timedict[name], start_times[name], endtime=period_length+1)[0]
+            # ts_dict['text_time_to_end'] = get_time_to_end_diffs(
+            #     timedict[name], start_times[name], endtime=period_length+1)[0]
+            ts_dict['text_time'] = get_time_diffs(
+                timedict[name], start_times[name])
             suceed += 1
             new_tslist.append(ts_dict)
         else:
@@ -504,9 +517,9 @@ def create_irregular_ts():
 
     if "Text" in args.modality_type:
         train_textdata_fixed = MIMIC3_BENCHMARK_PATH / "train_text_fixed"
-        train_starttime_path = MIMIC3_BENCHMARK_PATH / "train_starttime.pkl"
+        train_starttime_path = train_textdata_fixed / "train_starttime.pkl"
         test_textdata_fixed = MIMIC3_BENCHMARK_PATH / "test_text_fixed"
-        test_starttime_path = MIMIC3_BENCHMARK_PATH / "test_starttime.pkl"
+        test_starttime_path = test_textdata_fixed / "test_starttime.pkl"
 
         print("Step 5: Load Text data")
         for mode in ['train', 'val', 'test']:

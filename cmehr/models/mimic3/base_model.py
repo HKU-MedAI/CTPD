@@ -184,7 +184,6 @@ class MIMIC3LightningModule(LightningModule):
             temp = np.sort(all_labels, axis=0)
             nunique_per_class = (temp[:, 1:] != temp[:, :-1]).sum(axis=0) + 1
             if np.all(nunique_per_class > 1):
-                ipdb.set_trace()
                 ave_auc_macro = metrics.roc_auc_score(all_labels, all_logits,
                                                       average="macro")
                 auprc = metrics.average_precision_score(

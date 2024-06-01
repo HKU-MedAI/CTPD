@@ -14,7 +14,8 @@ from lightning.pytorch.loggers import WandbLogger
 from cmehr.dataset import MIMIC4DataModule
 from cmehr.models.mimic4 import (
     CNNModule, ProtoTSModel, IPNetModule, GRUDModule, SEFTModule, RNNModule, LSTMModule,
-    MTANDModule, DGM2OModule, MedFuseModule, TransformerModule, MILLETModule, OTKModule)
+    MTANDModule, DGM2OModule, MedFuseModule, TransformerModule, MILLETModule, OTKModule,
+    CAMELOTModule, TSLANETModule)
 from cmehr.paths import *
 
 torch.backends.cudnn.deterministic = True  # type: ignore
@@ -22,8 +23,8 @@ torch.backends.cudnn.benchmark = True  # type: ignore
 torch.set_float32_matmul_precision("high")
 
 '''
-CUDA_VISIBLE_DEVICES=1 python train_mimic4.py --modeltype TS --task ihm --model_name millet
-CUDA_VISIBLE_DEVICES=1 python train_mimic4.py --modeltype TS --task pheno --model_name millet
+CUDA_VISIBLE_DEVICES=1 python train_mimic4.py --modeltype TS --task ihm --model_name mtand
+CUDA_VISIBLE_DEVICES=1 python train_mimic4.py --modeltype TS --task pheno --model_name camelot
 '''
 parser = ArgumentParser(description="PyTorch Lightning EHR Model")
 parser.add_argument("--task", type=str, default="pheno",
@@ -39,8 +40,8 @@ parser.add_argument("--accumulate_grad_batches", type=int, default=1)
 parser.add_argument("--first_nrows", type=int, default=-1)
 parser.add_argument("--model_name", type=str, default="cnn",
                     choices=["proto_ts", "ipnet", "grud", "seft", "mtand", "dgm2", "rnn",
-                             "medfuse", "cnn", "lstm", "transformer", "millet",
-                             "otk", "diffem"])
+                             "medfuse", "cnn", "lstm", "transformer", "millet", "camelot",
+                             "otk", "diffem", "tslanet"])
 parser.add_argument("--modeltype", type=str, default="TS_CXR",
                     choices=["TS_CXR", "TS", "CXR"],
                     help="Set the model type to use for training")
@@ -169,6 +170,18 @@ def cli_main():
                     args.ckpt_path, **vars(args))
             else:
                 model = OTKModule(**vars(args))
+        elif args.model_name == "camelot":
+            if args.ckpt_path:
+                model = CAMELOTModule.load_from_checkpoint(
+                    args.ckpt_path, **vars(args))
+            else:
+                model = CAMELOTModule(**vars(args))
+        elif args.model_name == "tslanet":
+            if args.ckpt_path:
+                model = TSLANETModule.load_from_checkpoint(
+                    args.ckpt_path, **vars(args))
+            else:
+                model = TSLANETModule(**vars(args))
         else:
             raise ValueError("Invalid model name")
 
@@ -189,7 +202,7 @@ def cli_main():
                     mode="max",
                     save_top_k=2,
                     save_last=False),
-                EarlyStopping(monitor="val_auroc", patience=5,
+                EarlyStopping(monitor="val_auroc", patience=10,
                               mode="max", verbose=True)
             ]
         elif args.task == "pheno":
@@ -201,14 +214,14 @@ def cli_main():
                     mode="max",
                     save_top_k=2,
                     save_last=False),
-                EarlyStopping(monitor="val_auroc", patience=5,
+                EarlyStopping(monitor="val_auroc", patience=10,
                               mode="max", verbose=True)
             ]
         trainer = Trainer(
             devices=args.devices,
             accelerator="gpu",
             max_epochs=args.max_epochs,
-            precision="16-mixed",
+            # precision="16-mixed",
             accumulate_grad_batches=args.accumulate_grad_batches,
             # deterministic=False,
             callbacks=callbacks,

@@ -92,8 +92,6 @@ class TextReader():
                 final_concatenated_text = []
                 times_array = []
                 for (t, txt) in zip(time, texts):
-
-                    # and  diff(start_time, t)>=(-24-1e-6)
                     if diff(start_time, t) <= period_length + 1e-6:
                         final_concatenated_text.append(txt)
                         times_array.append(t)
