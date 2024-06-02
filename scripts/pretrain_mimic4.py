@@ -19,13 +19,13 @@ torch.backends.cudnn.benchmark = True  # type: ignore
 torch.set_float32_matmul_precision("high")
 
 '''
-CUDA_VISIBLE_DEVICES=1 python pretrain_mimic4.py --modeltype TS_CXR
+CUDA_VISIBLE_DEVICES=2,3 python pretrain_mimic4.py --modeltype TS_CXR --devices 2
 '''
 
 parser = ArgumentParser(description="Self-supervised pretraining for MIMIC IV")
 parser.add_argument("--batch_size", type=int, default=32)
 parser.add_argument("--num_workers", type=int, default=4)
-parser.add_argument("--max_epochs", type=int, default=50)
+parser.add_argument("--max_epochs", type=int, default=100)
 parser.add_argument("--devices", type=int, default=1)
 parser.add_argument("--max_length", type=int, default=1024)
 parser.add_argument("--accumulate_grad_batches", type=int, default=1)

@@ -536,35 +536,35 @@ def create_irregular_ts():
         )
     normalizer.load_params(normalizer_state)
 
-    # print("Step 1: Load regular time series data")
-    # save_data(train_reader, discretizer, output_dir,
-    #           args.small_part, mode='train')
-    # save_data(val_reader, discretizer, output_dir,
-    #           args.small_part, mode='val')
-    # save_data(test_reader, discretizer, output_dir,
-    #           args.small_part, mode='test')
+    print("Step 1: Load regular time series data")
+    save_data(train_reader, discretizer, output_dir,
+              args.small_part, mode='train')
+    save_data(val_reader, discretizer, output_dir,
+              args.small_part, mode='val')
+    save_data(test_reader, discretizer, output_dir,
+              args.small_part, mode='test')
 
-    # print("Step 2: Load irregular time series data")
-    # for mode in ['train', 'val', 'test']:
-    #     extract_irregular(
-    #         os.path.join(output_dir, f"ts_{mode}.pkl"),
-    #         os.path.join(output_dir, f"ts_{mode}.pkl")
-    #     )
+    print("Step 2: Load irregular time series data")
+    for mode in ['train', 'val', 'test']:
+        extract_irregular(
+            os.path.join(output_dir, f"ts_{mode}.pkl"),
+            os.path.join(output_dir, f"ts_{mode}.pkl")
+        )
 
-    # # calculate mean,std of ts
-    # print("Step 3: compute mean and std of the whole dataset")
-    # mean_std(
-    #     os.path.join(output_dir, 'ts_train.pkl'),
-    #     os.path.join(output_dir, 'mean_std.pkl')
-    # )
+    # calculate mean,std of ts
+    print("Step 3: compute mean and std of the whole dataset")
+    mean_std(
+        os.path.join(output_dir, 'ts_train.pkl'),
+        os.path.join(output_dir, 'mean_std.pkl')
+    )
 
-    # print("Step 4: normalize the time series data")
-    # for mode in ['train', 'val', 'test']:
-    #     normalize(
-    #         os.path.join(output_dir, f"ts_{mode}.pkl"),
-    #         os.path.join(output_dir, f"norm_ts_{mode}.pkl"),
-    #         os.path.join(output_dir, 'mean_std.pkl')
-    #     )
+    print("Step 4: normalize the time series data")
+    for mode in ['train', 'val', 'test']:
+        normalize(
+            os.path.join(output_dir, f"ts_{mode}.pkl"),
+            os.path.join(output_dir, f"norm_ts_{mode}.pkl"),
+            os.path.join(output_dir, 'mean_std.pkl')
+        )
 
     if "Text" in args.modality_type:
         train_textdata_fixed = MIMIC4_BENCHMARK_PATH / "train_note"
