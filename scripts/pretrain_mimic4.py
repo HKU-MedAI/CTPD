@@ -33,7 +33,7 @@ parser.add_argument("--first_nrows", type=int, default=-1)
 parser.add_argument("--modeltype", type=str, default="TS_CXR",
                     choices=["TS_CXR", "TS", "CXR"],
                     help="Set the model type to use for training")
-parser.add_argument("--ts_learning_rate", type=float, default=4e-4)
+parser.add_argument("--ts_learning_rate", type=float, default=1e-3)
 parser.add_argument("--seed", type=int, default=42)
 args = parser.parse_args()
 

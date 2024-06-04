@@ -1,7 +1,6 @@
 from typing import Dict
 import ipdb
 import numpy as np
-import sklearn.metrics as metrics
 from einops import rearrange
 import torch
 from torch import nn
@@ -9,7 +8,8 @@ import torch.nn.functional as F
 from lightning import LightningModule
 from cmehr.models.mimic4.UTDE_modules import multiTimeAttention
 from cmehr.backbone.vision.pretrained import get_biovil_t_image_encoder
-from lightning.pytorch.utilities.types import STEP_OUTPUT
+from cmehr.utils.hard_ts_losses import hier_CL_hard
+from cmehr.utils.soft_ts_losses import hier_CL_soft
 
 
 class MIMIC4PretrainModule(LightningModule):
@@ -23,6 +23,7 @@ class MIMIC4PretrainModule(LightningModule):
                  embed_time: int = 64,
                  embed_dim: int = 128,
                  num_imgs: int = 5,
+                 cm_loss_weight: float = 0.5,
                  *args,
                  **kwargs
                  ):
@@ -39,6 +40,7 @@ class MIMIC4PretrainModule(LightningModule):
         self.tt_max = period_length
         self.embed_dim = embed_dim
         self.num_imgs = num_imgs
+        self.cm_loss_weight = cm_loss_weight
 
         self.img_encoder = get_biovil_t_image_encoder()
         for param in self.img_encoder.parameters():
@@ -57,8 +59,8 @@ class MIMIC4PretrainModule(LightningModule):
         self.time_query_ts = torch.linspace(0, 1., self.tt_max)
         self.time_attn_ts = multiTimeAttention(
             self.orig_d_ts*2, self.embed_dim, embed_time, 8)
-        self.lstm_ts = nn.LSTM(
-            embed_dim, embed_dim, 1, batch_first=True)
+        # self.lstm_ts = nn.LSTM(
+        #     embed_dim, embed_dim, 1, batch_first=True)
 
         # for img embedding
         self.periodic_img = nn.Linear(1, embed_time-1)
@@ -66,8 +68,8 @@ class MIMIC4PretrainModule(LightningModule):
         self.time_query_img = torch.linspace(0, 1., self.num_imgs)
         self.time_attn_img = multiTimeAttention(
             self.embed_dim, self.embed_dim, embed_time, 8)
-        self.lstm_img = nn.LSTM(
-            embed_dim, embed_dim, 1, batch_first=True)
+        # self.lstm_img = nn.LSTM(
+        #     embed_dim, embed_dim, 1, batch_first=True)
 
     def forward_ts_mtand(self,
                          x_ts: torch.Tensor,
@@ -98,7 +100,7 @@ class MIMIC4PretrainModule(LightningModule):
         proj_x_ts_irg = self.time_attn_ts(
             time_query, time_key_ts, x_ts_irg, x_ts_mask)
         
-        proj_x_ts_irg, _ = self.lstm_ts(proj_x_ts_irg)
+        # proj_x_ts_irg, _ = self.lstm_ts(proj_x_ts_irg)
 
         return proj_x_ts_irg
 
@@ -129,7 +131,7 @@ class MIMIC4PretrainModule(LightningModule):
         proj_x_img_irg = self.time_attn_img(
             time_query, time_key_cxr, x_cxr, x_cxr_mask)
         
-        proj_x_img_irg, _ = self.lstm_img(proj_x_img_irg)
+        # proj_x_img_irg, _ = self.lstm_img(proj_x_img_irg)
 
         return proj_x_img_irg
 
@@ -159,10 +161,24 @@ class MIMIC4PretrainModule(LightningModule):
 
         return ts_aug_1, ts_tt_aug_1, ts_mask_aug_1, ts_aug_2, ts_tt_aug_2, ts_mask_aug_2
 
+    def extract_img_embs(self, imgs, img_time, img_time_mask):
+        batch_size = imgs.size(0)
+        valid_imgs = imgs[img_time_mask.bool()]
+        cxr_feats = self.img_encoder(valid_imgs).img_embedding
+        cxr_embs = self.img_proj_layer(cxr_feats)
+
+        padded_feats = torch.zeros(
+            batch_size, self.num_imgs, cxr_embs.size(-1)).type_as(cxr_embs)
+        padded_feats[img_time_mask.bool()] = cxr_embs
+        img_time_mask = img_time_mask.unsqueeze(2).repeat(1, 1, cxr_embs.size(-1))
+        proj_img_embs = self.forward_cxr_mtand(
+            padded_feats, img_time_mask, img_time)
+        
+        return proj_img_embs
+
     def forward(self, batch: Dict):
-        #############################################
-        # stage 1: encode both modalities
-        #############################################
+
+        batch_size = batch["ts"].size(0)
         # (batch_size, tt_max, embed_dim)
         ts, ts_mask, ts_tt = batch["ts"], batch["ts_mask"], batch["ts_tt"]
         # create two augmentation view for TS
@@ -172,23 +188,11 @@ class MIMIC4PretrainModule(LightningModule):
         proj_ts_aug_2 = self.forward_ts_mtand(
             ts_aug_2, ts_mask_aug_2, ts_tt_aug_2)
 
-        cxr_imgs = batch["cxr_imgs"]
-        cxr_time = batch["cxr_time"] 
-        cxr_time_mask = batch["cxr_time_mask"]
-        batch_size = cxr_imgs.size(0)
-        valid_cxr_imgs = cxr_imgs[cxr_time_mask.bool()]
-        cxr_feats = self.img_encoder(valid_cxr_imgs).img_embedding
-        cxr_embs = self.img_proj_layer(cxr_feats)
-
-        padded_feats = torch.zeros(
-            batch_size, self.num_imgs, cxr_embs.size(-1)).type_as(cxr_embs)
-        padded_feats[cxr_time_mask.bool()] = cxr_embs
-        cxr_time_mask = cxr_time_mask.unsqueeze(2).repeat(1, 1, cxr_embs.size(-1))
-        proj_img_embs = self.forward_cxr_mtand(
-            padded_feats, cxr_time_mask, cxr_time)
-
-        ts2vec_loss = self.hierarchical_contrastive_loss(
-            proj_ts_aug_1, proj_ts_aug_2)
+        proj_img_embs = self.extract_img_embs(
+            batch["cxr_imgs"], batch["cxr_time"] , batch["cxr_time_mask"])
+        ts2vec_loss = hier_CL_hard(
+            proj_ts_aug_1, proj_ts_aug_2
+        )
 
         # find corresponding CXR at each time point
         cxr_time_indices = self.time_query_img // (1 / self.tt_max)
@@ -200,13 +204,14 @@ class MIMIC4PretrainModule(LightningModule):
         proj_img_embs = rearrange(proj_img_embs, "b n d -> (b n) d")
         cm_loss = (self.infonce_loss(ts_embs_aug_1, proj_img_embs) + self.infonce_loss(ts_embs_aug_2, proj_img_embs)) / 2
         loss_dict = {
-            "loss": ts2vec_loss + cm_loss,
+            "loss": ts2vec_loss + self.cm_loss_weight * cm_loss,
             "ts2vec_loss": ts2vec_loss,
             "cm_loss": cm_loss
         }
+
         return loss_dict
 
-    def infonce_loss(self, out_1, out_2, temperature=0.5):
+    def infonce_loss(self, out_1, out_2, temperature=0.07):
         """
         Compute the InfoNCE loss for the given outputs.
         """
@@ -216,69 +221,21 @@ class MIMIC4PretrainModule(LightningModule):
         sim /= temperature
         labels = torch.arange(sim.size(0)).to(sim.device)
         return F.cross_entropy(sim, labels)
-    
-    # loss function of https://github.com/zhihanyue/ts2vec/tree/main
-    def hierarchical_contrastive_loss(self, z1, z2, alpha=0.5, temporal_unit=0):
-        loss = torch.tensor(0., device=z1.device)
-        d = 0
-        while z1.size(1) > 1:
-            if alpha != 0:
-                loss += alpha * self.instance_contrastive_loss(z1, z2)
-            if d >= temporal_unit:
-                if 1 - alpha != 0:
-                    loss += (1 - alpha) * self.temporal_contrastive_loss(z1, z2)
-            d += 1
-            z1 = F.max_pool1d(z1.transpose(1, 2), kernel_size=2).transpose(1, 2)
-            z2 = F.max_pool1d(z2.transpose(1, 2), kernel_size=2).transpose(1, 2)
-        if z1.size(1) == 1:
-            if alpha != 0:
-                loss += alpha * self.instance_contrastive_loss(z1, z2)
-            d += 1
-        return loss / d
-
-    @staticmethod
-    def instance_contrastive_loss(z1, z2):
-        B, T = z1.size(0), z1.size(1)
-        if B == 1:
-            return z1.new_tensor(0.)
-        z = torch.cat([z1, z2], dim=0)  # 2B x T x C
-        z = z.transpose(0, 1)  # T x 2B x C
-        sim = torch.matmul(z, z.transpose(1, 2))  # T x 2B x 2B
-        logits = torch.tril(sim, diagonal=-1)[:, :, :-1]    # T x 2B x (2B-1)
-        logits += torch.triu(sim, diagonal=1)[:, :, 1:]
-        logits = -F.log_softmax(logits, dim=-1)
-        
-        i = torch.arange(B, device=z1.device)
-        loss = (logits[:, i, B + i - 1].mean() + logits[:, B + i, i].mean()) / 2
-        return loss
-
-    @staticmethod
-    def temporal_contrastive_loss(z1, z2):
-        B, T = z1.size(0), z1.size(1)
-        if T == 1:
-            return z1.new_tensor(0.)
-        z = torch.cat([z1, z2], dim=1)  # B x 2T x C
-        sim = torch.matmul(z, z.transpose(1, 2))  # B x 2T x 2T
-        logits = torch.tril(sim, diagonal=-1)[:, :, :-1]    # B x 2T x (2T-1)
-        logits += torch.triu(sim, diagonal=1)[:, :, 1:]
-        logits = -F.log_softmax(logits, dim=-1)
-        
-        t = torch.arange(T, device=z1.device)
-        loss = (logits[:, t, T + t - 1].mean() + logits[:, T + t, t].mean()) / 2
-        return loss
 
     def training_step(self, batch: Dict, batch_idx: int):
+        batch_size = batch["ts"].size(0)
         loss_dict = self(batch)
         train_loss_dict = {f"train_{k}": v for k, v in loss_dict.items()}
         self.log_dict(train_loss_dict, on_step=True, on_epoch=True, 
-                      prog_bar=True, sync_dist=True)
+                      prog_bar=True, sync_dist=True, batch_size=batch_size)
         return loss_dict["loss"]
     
     def validation_step(self, batch: Dict, batch_idx: int):
+        batch_size = batch["ts"].size(0)
         loss_dict = self(batch)
         val_loss_dict = {f"val_{k}": v for k, v in loss_dict.items()}
         self.log_dict(val_loss_dict, on_step=True, on_epoch=True, 
-                      prog_bar=True, sync_dist=True)
+                      prog_bar=True, sync_dist=True, batch_size=batch_size)
         return loss_dict["loss"]
 
     def configure_optimizers(self):
