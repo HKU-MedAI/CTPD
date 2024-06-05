@@ -1,3 +1,2 @@
 # Tested in cuda 11.7
-lightning==2.1.4
-timm
+

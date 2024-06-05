@@ -1,0 +1,25 @@
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "cmehr"
+authors = [
+    {name = "Fuying Wang", email = "fuyingw@connect.hku.hk"},
+    {name = "Feng Wu", email="fengwu96@connect.hku.hk"}
+]
+description = "Unsupervised multimodal prototype learning for EHR analysis"
+version = "0.0.1"
+readme = "README.md"
+requires-python = ">=3.8"
+dependencies = [
+    "pandas",
+    "lightning==2.1.4",
+    "timm"
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]    # list of folders that contain the packages (["."] by default)
+include = ["src"]  # package names should match these glob patterns (["*"] by default)
+exclude = []         # exclude packages matching these glob patterns (empty by default)
+namespaces = false   # to disable scanning PEP 420 namespaces (true by default)
