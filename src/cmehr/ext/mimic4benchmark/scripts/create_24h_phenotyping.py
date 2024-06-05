@@ -84,8 +84,6 @@ def process_partition(args, definitions, code_to_group, id_to_group, group_to_id
                 cur_labels = [x for (i, x) in enumerate(cur_labels)
                               if definitions[id_to_group[i]]['use_in_benchmark']]
 
-                # xty_triples.append(
-                #     (output_ts_filename, los, icustay, cur_labels))
                 xty_triples.append(
                     (output_ts_filename, n_hours, icustay, cur_labels))
 

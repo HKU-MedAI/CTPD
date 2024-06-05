@@ -1,5 +1,4 @@
 import pickle
-from cv2 import transform
 import ipdb
 from lightning.pytorch.utilities.types import TRAIN_DATALOADERS
 import numpy as np
@@ -10,7 +9,6 @@ import torch
 import torchvision
 from torch.nn.utils.rnn import pad_sequence
 from lightning import LightningDataModule
-from transformers import AutoTokenizer
 from torch.utils.data import DataLoader, Dataset
 from cmehr.paths import *
 
@@ -22,8 +20,6 @@ def get_transforms(is_train: bool = False):
             torchvision.transforms.RandomResizedCrop(512),
             torchvision.transforms.ToTensor(),
             torchvision.transforms.Normalize(0, 1)
-            # torchvision.transforms.Normalize(mean=[0.485, 0.456, 0.406],
-            #                                  std=[0.229, 0.224, 0.225])
         ])
     else:
         transforms = torchvision.transforms.Compose([
@@ -31,8 +27,6 @@ def get_transforms(is_train: bool = False):
             torchvision.transforms.CenterCrop(512),
             torchvision.transforms.ToTensor(),
             torchvision.transforms.Normalize(0, 1)
-            # torchvision.transforms.Normalize(mean=[0.485, 0.456, 0.406],
-            #                                  std=[0.229, 0.224, 0.225])
         ])
 
     return transforms

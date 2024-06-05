@@ -6,14 +6,14 @@ from tqdm import tqdm
 import ipdb
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--task', type=str, default='ihm',
-                    choices=["ihm", "pheno"])
+# parser.add_argument('--task', type=str, default='ihm',
+#                     choices=["ihm", "pheno"])
 parser.add_argument('--mimic_cxr_path', type=str,
-                    default='/disk1/**/CXR_dataset/mimic_data/2.0.0')
+                    default='/disk1/fywang/CXR_dataset/mimic_data/2.0.0')
 parser.add_argument('--mimic_iv_admission_csv', type=str,
-                    default="/disk1/**/EHR_dataset/mimiciv_benchmark/all_stays.csv")
+                    default="/disk1/fywang/EHR_dataset/mimiciv_fairness_benchmark/all_stays.csv")
 parser.add_argument('--save_dir', type=str,
-                    default="/disk1/**/EHR_dataset/mimiciv_benchmark/cxr")
+                    default="/disk1/fywang/EHR_dataset/mimiciv_fairness_benchmark/cxr")
 args = parser.parse_args()
 
 os.makedirs(args.save_dir, exist_ok=True)
@@ -40,11 +40,12 @@ def main():
     cxr_merged_icustays.intime = pd.to_datetime(cxr_merged_icustays.intime)
     cxr_merged_icustays.outtime = pd.to_datetime(cxr_merged_icustays.outtime)
     end_time = cxr_merged_icustays.outtime
-    if args.task == 'ihm':
-        end_time = cxr_merged_icustays.intime + pd.Timedelta(hours=48)
-    elif args.task == 'pheno':
-        end_time = cxr_merged_icustays.intime + pd.Timedelta(hours=24)
+    # if args.task == 'ihm':
+    #     end_time = cxr_merged_icustays.intime + pd.Timedelta(hours=48)
+    # elif args.task == 'pheno':
+    #     end_time = cxr_merged_icustays.intime + pd.Timedelta(hours=24)
 
+    # we keep cxrs within all icu stays
     cxr_merged_icustays_during = cxr_merged_icustays.loc[(
         cxr_merged_icustays.StudyDateTime >= cxr_merged_icustays.intime) & ((cxr_merged_icustays.StudyDateTime <= end_time))]
 
@@ -54,7 +55,7 @@ def main():
         cxr_merged_icustays_during['ViewPosition'].isin(['AP', 'PA'])]
 
     all_path = []
-    for _, row in cxr_merged_icustays_AP.iterrows():
+    for _, row in tqdm(cxr_merged_icustays_AP.iterrows(), total=len(cxr_merged_icustays_AP)):
         subject_id = row["subject_id"]
         study_id = row["study_id"]
         dicom_id = row["dicom_id"]
@@ -69,7 +70,7 @@ def main():
 
     cxr_merged_icustays_AP["path"] = all_path
     cxr_merged_icustays_AP.to_csv(
-        os.path.join(args.save_dir, f"admission_w_cxr_{args.task}.csv"), index=False
+        os.path.join(args.save_dir, f"admission_w_cxr.csv"), index=False
     )
 
 

@@ -1,5 +1,6 @@
 ### Commands to run MIMIC IV benchmark
 
+We need to update these code to make sure they are consistent with `mimiciv_fairness_benchmark`.
 1. Extract subjects: 
 ```
 python -m mimic4benchmark.scripts.extract_subjects_iv /disk1/**/EHR_dataset/mimiciv/tables /disk1/**/EHR_dataset/mimiciv_benchmark
@@ -66,11 +67,11 @@ python -m mimic4benchmark.scripts.create_survival_prediction /disk1/fywang/EHR_d
 ```
 python -m mimic4models.split_train_val /disk1/**/EHR_dataset/mimiciv_benchmark/in-hospital-mortality/
 python -m mimic4models.split_train_val /disk1/**/EHR_dataset/mimiciv_benchmark/phenotyping_24h
+python -m mimic4models.split_train_val /disk1/fywang/EHR_dataset/mimiciv_fairness_benchmark/cxr
 ```
 
 #### Create metadata for CXR
 
 ```
-python extract_cxr.py --task ihm
-python extract_cxr.py --task pheno
+python extract_cxr.py
 ```
