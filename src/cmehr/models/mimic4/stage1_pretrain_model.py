@@ -14,15 +14,15 @@ from cmehr.utils.soft_ts_losses import hier_CL_soft
 
 class MIMIC4PretrainModule(LightningModule):
     def __init__(self,
-                 orig_d_ts: int = 15,
-                 orig_reg_d_ts: int = 30,
+                 orig_d_ts: int = 25,
+                 orig_reg_d_ts: int = 50,
                  max_epochs: int = 10,
                  img_learning_rate: float = 1e-4,
                  ts_learning_rate: float = 4e-4,
-                 period_length: int = 48,
                  embed_time: int = 64,
                  embed_dim: int = 128,
-                 num_imgs: int = 5,
+                 num_imgs: int = 12,
+                 period_length: float = 300,
                  cm_loss_weight: float = 0.5,
                  *args,
                  **kwargs
@@ -37,9 +37,9 @@ class MIMIC4PretrainModule(LightningModule):
         self.max_epochs = max_epochs
         self.img_learning_rate = img_learning_rate
         self.ts_learning_rate = ts_learning_rate
-        self.tt_max = period_length
         self.embed_dim = embed_dim
         self.num_imgs = num_imgs
+        self.tt_max = period_length
         self.cm_loss_weight = cm_loss_weight
 
         self.img_encoder = get_biovil_t_image_encoder()
@@ -56,21 +56,19 @@ class MIMIC4PretrainModule(LightningModule):
         # for time series embedding
         self.periodic_ts = nn.Linear(1, embed_time-1)
         self.linear_ts = nn.Linear(1, 1)
+        # For TS, we encode it into hourly embedding within 400 hours ...
         self.time_query_ts = torch.linspace(0, 1., self.tt_max)
         self.time_attn_ts = multiTimeAttention(
             self.orig_d_ts*2, self.embed_dim, embed_time, 8)
-        # self.lstm_ts = nn.LSTM(
-        #     embed_dim, embed_dim, 1, batch_first=True)
 
         # for img embedding
         self.periodic_img = nn.Linear(1, embed_time-1)
         self.linear_img = nn.Linear(1, 1)
-        self.time_query_img = torch.linspace(0, 1., self.num_imgs)
+        # For CXR, we encode it into 5 time points ...
+        self.time_query_img = torch.linspace(0, 1., self.tt_max // 25)
         self.time_attn_img = multiTimeAttention(
             self.embed_dim, self.embed_dim, embed_time, 8)
-        # self.lstm_img = nn.LSTM(
-        #     embed_dim, embed_dim, 1, batch_first=True)
-
+        
     def forward_ts_mtand(self,
                          x_ts: torch.Tensor,
                          x_ts_mask: torch.Tensor,
@@ -99,8 +97,6 @@ class MIMIC4PretrainModule(LightningModule):
         # out: (B, N_r, 128?)
         proj_x_ts_irg = self.time_attn_ts(
             time_query, time_key_ts, x_ts_irg, x_ts_mask)
-        
-        # proj_x_ts_irg, _ = self.lstm_ts(proj_x_ts_irg)
 
         return proj_x_ts_irg
 
@@ -117,21 +113,12 @@ class MIMIC4PretrainModule(LightningModule):
             out1 = self.linear_img(tt)
             return torch.cat([out1, out2], -1)
         
-        # (B, N) -> (B, N, embed_time)
-        # fixed
         time_key_cxr = learn_time_embedding(
             cxr_tt_list)
         time_query = learn_time_embedding(
             self.time_query_img.unsqueeze(0).type_as(x_cxr))
-        # query: (1, N_r, embed_time),
-        # key: (B, N, embed_time),
-        # value: (B, N, 2 * D_t)
-        # mask: (B, N, 2 * D_t)
-        # out: (B, N_r, 128?)
         proj_x_img_irg = self.time_attn_img(
             time_query, time_key_cxr, x_cxr, x_cxr_mask)
-        
-        # proj_x_img_irg, _ = self.lstm_img(proj_x_img_irg)
 
         return proj_x_img_irg
 
@@ -195,7 +182,7 @@ class MIMIC4PretrainModule(LightningModule):
         )
 
         # find corresponding CXR at each time point
-        cxr_time_indices = self.time_query_img // (1 / self.tt_max)
+        cxr_time_indices = torch.clamp(self.time_query_img // (1 / self.tt_max), 0, self.tt_max - 1)
         ts_embs_aug_1 = proj_ts_aug_1[torch.arange(batch_size)[:, None], cxr_time_indices.long()]
         ts_embs_aug_2 = proj_ts_aug_2[torch.arange(batch_size)[:, None], cxr_time_indices.long()]
 
@@ -256,29 +243,18 @@ if __name__ == "__main__":
     from torch.utils.data import DataLoader
     from cmehr.paths import *
     # from cmehr.dataset.mimic4_datamodule import MIMIC4DataModule
-    from cmehr.dataset.mimic4_datamodule import MIMIC4DataModule
+    from cmehr.dataset.mimic4_pretraining_datamodule import MIMIC4MultimodalDataModule
 
-    datamodule = MIMIC4DataModule(
-        file_path=str(ROOT_PATH / "output_mimic4/TS_CXR/ihm"),
-        tt_max=48
+    datamodule = MIMIC4MultimodalDataModule(
+        file_path=str(ROOT_PATH / "output_mimic4/self_supervised_multimodal"),
+        period_length=300
     )
     batch = dict()
     for batch in datamodule.val_dataloader():
         break
     for k, v in batch.items():
         print(f"{k}: ", v.shape)
-    """
-    ts: torch.Size([4, 157, 17])
-    ts_mask:  torch.Size([4, 157, 17])
-    ts_tt:  torch.Size([4, 157])
-    reg_ts:  torch.Size([4, 48, 34])
-    input_ids:  torch.Size([4, 5, 128])
-    attention_mask:  torch.Size([4, 5, 128])
-    note_time:  torch.Size([4, 5])
-    note_time_mask: torch.Size([4, 5])
-    label: torch.Size([4])
-    """
-    model = MIMIC4PretrainModule(
-        period_length=48)
+
+    model = MIMIC4PretrainModule(period_length=300)
     loss = model(batch)
     print(loss)

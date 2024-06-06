@@ -10,7 +10,7 @@ import torch
 from lightning import Trainer, seed_everything
 from lightning.pytorch.callbacks import LearningRateMonitor, ModelCheckpoint, EarlyStopping
 from lightning.pytorch.loggers import WandbLogger
-from cmehr.dataset import MIMIC4DataModule
+from cmehr.dataset.mimic4_pretraining_datamodule import MIMIC4MultimodalDataModule
 from cmehr.models.mimic4.stage1_pretrain_model import MIMIC4PretrainModule
 from cmehr.paths import *
 
@@ -19,20 +19,17 @@ torch.backends.cudnn.benchmark = True  # type: ignore
 torch.set_float32_matmul_precision("high")
 
 '''
-CUDA_VISIBLE_DEVICES=2,3 python pretrain_mimic4.py --modeltype TS_CXR --devices 2
+CUDA_VISIBLE_DEVICES=2,3 python pretrain_mimic4.py --devices 2
 '''
 
 parser = ArgumentParser(description="Self-supervised pretraining for MIMIC IV")
-parser.add_argument("--batch_size", type=int, default=32)
+parser.add_argument("--batch_size", type=int, default=16)
 parser.add_argument("--num_workers", type=int, default=4)
 parser.add_argument("--max_epochs", type=int, default=100)
 parser.add_argument("--devices", type=int, default=1)
 parser.add_argument("--max_length", type=int, default=1024)
 parser.add_argument("--accumulate_grad_batches", type=int, default=1)
 parser.add_argument("--first_nrows", type=int, default=-1)
-parser.add_argument("--modeltype", type=str, default="TS_CXR",
-                    choices=["TS_CXR", "TS", "CXR"],
-                    help="Set the model type to use for training")
 parser.add_argument("--ts_learning_rate", type=float, default=1e-3)
 parser.add_argument("--seed", type=int, default=42)
 args = parser.parse_args()
@@ -42,22 +39,20 @@ def cli_main():
     seed_everything(args.seed)
 
     # This is fixed for MIMIC4
-    args.orig_d_ts = 15
-    args.orig_reg_d_ts = 30
+    args.orig_d_ts = 25
+    args.orig_reg_d_ts = 50
+    args.period_length = 100
 
     # define datamodule
     if args.first_nrows == -1:
         args.first_nrows = None
 
     # TODO: change this to use the task argument
-    args.task = "ihm"
-    args.period_length = 48
-    dm = MIMIC4DataModule(  
+    dm = MIMIC4MultimodalDataModule(  
         mimic_cxr_dir=str(MIMIC_CXR_JPG_PATH),
         file_path=str(
-            ROOT_PATH / f"output_mimic4/TS_CXR/{args.task}"),
-        modeltype=args.modeltype,
-        tt_max=args.period_length,
+            ROOT_PATH / f"output_mimic4/self_supervised_multimodal"),
+        period_length=args.period_length,
         batch_size=args.batch_size,
         num_workers=args.num_workers,
         first_nrows=args.first_nrows)
@@ -66,7 +61,7 @@ def cli_main():
 
     # initialize trainer
     run_name = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-    run_name = f"mimic4_{args.task}_pretrain_{run_name}"
+    run_name = f"mimic4_pretrain_{run_name}"
     os.makedirs(ROOT_PATH / "log/ckpts", exist_ok=True)
     logger = WandbLogger(
         name=run_name,

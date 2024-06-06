@@ -4,7 +4,7 @@ import argparse
 from pathlib import Path
 
 
-ROOT_PATH = Path(__file__).parent.parent
+ROOT_PATH = Path(__file__).parent.parent.parent
 DATA_PATH = Path("/disk1/fywang/EHR_dataset")
 
 # path for mimic iii dataset

@@ -70,7 +70,7 @@ class MILLETModule(MIMIC4LightningModule):
 
 if __name__ == "__main__":
     from cmehr.paths import *
-    from cmehr.dataset.mimic4_datamodule import MIMIC4DataModule
+    from cmehr.dataset.mimic4_pretraining_datamodule import MIMIC4DataModule
 
     datamodule = MIMIC4DataModule(
         file_path=str(ROOT_PATH / "output_mimic4/TS_CXR/ihm"),

@@ -1,0 +1,83 @@
+{
+    "Heart Rate":{
+        "possible_values": []
+    },
+    "Systolic Blood Pressure":{
+        "possible_values": []
+    },
+    "Diastolic Blood Pressure":{
+        "possible_values": []
+    },
+    "Mean Blood Pressure":{
+        "possible_values": []
+    },
+    "Respiratory Rate":{
+        "possible_values": []
+    },
+    "Body Temperature":{
+        "possible_values": []
+    },
+    "Oxygen Saturation":{
+        "possible_values": []
+    },
+    "Arterial Base Excess":{
+        "possible_values": []
+    },
+    "Arterial Carbon Dioxide Pressure":{
+        "possible_values": []
+    },
+    "Arterial Oxygen Pressure":{
+        "possible_values": []
+    },
+    "Arterial pH":{
+        "possible_values": []
+    },
+    "Blood Urea Nitrogen":{
+        "possible_values": []
+    },
+    "Creatinine":{
+        "possible_values": []
+    },
+    "Ionized Calcium":{
+        "possible_values": []
+    },
+    "Serum Chloride":{
+        "possible_values": []
+    },
+    "Serum Glucose":{
+        "possible_values": []
+    },
+    "Fingerstick Glucose":{
+        "possible_values": []
+    },
+    "Anion Gap":{
+        "possible_values": []
+    },
+    "Serum Bicarbonate":{
+        "possible_values": []
+    },
+    "Magnesium":{
+        "possible_values": []
+    },
+    "Phosphorus":{
+        "possible_values": []
+    },
+    "Serum Potassium":{
+        "possible_values": []
+    },
+    "Serum Sodium":{
+        "possible_values": []
+    },
+    "Serum Hematocrit":{
+        "possible_values": []
+    },
+    "Hemoglobin":{
+        "possible_values": []
+    },
+    "Platelet Count":{
+        "possible_values": []
+    },
+    "White Blood Cell Count":{
+        "possible_values": []
+    }
+}
