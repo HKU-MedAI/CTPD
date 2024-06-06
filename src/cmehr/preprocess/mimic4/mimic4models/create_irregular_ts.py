@@ -11,6 +11,8 @@ from pathlib import Path
 from tqdm import tqdm
 import numpy as np
 import statistics as stat
+from typing import List
+import ipdb
 
 from cmehr.paths import *
 from cmehr.preprocess.mimic4.mimic4models.readers import (InHospitalMortalityReader, PhenotypingReader, ReadmissionReader, 
@@ -18,6 +20,11 @@ from cmehr.preprocess.mimic4.mimic4models.readers import (InHospitalMortalityRea
 import cmehr.preprocess.mimic4.mimic4models.common_utils as common_utils
 from cmehr.preprocess.mimic4.mimic4models.preprocessing import Discretizer
 
+'''
+python create_irregular_ts.py --task pheno  --modality_type TS CXR \
+    --dataset_dir /disk1/fywang/EHR_dataset/mimiciv_fairness_benchmark \
+    --cxr_csv_path /home/fywang/Documents/EHR_codebase/MMMSPG/data/mimiciv_fairness_benchmark/cxr/admission_w_cxr.csv
+'''
 
 parser = argparse.ArgumentParser(
     description='Create irregular time series from MIMIC 4')
@@ -31,6 +38,10 @@ parser.add_argument('--timestep', type=float, default=1.0,
 parser.add_argument('--imputation', type=str, default='previous')
 parser.add_argument('--small_part', dest='small_part', action='store_true')
 parser.add_argument('--dataset_dir', type=str, default="../data")
+parser.add_argument('--modality_type', nargs="+", default=["TS", "CXR"],
+                    help="Three modalities in the dataset: time series, text, and CXR")
+parser.add_argument('--cxr_csv_path', type=str, 
+                    default="/home/fywang/Documents/EHR_codebase/MMMSPG/data/mimiciv_fairness_benchmark/cxr/admission_w_cxr.csv")
 args = parser.parse_args()
 
 args.dataset_dir = Path(args.dataset_dir) / args.task
@@ -41,7 +52,9 @@ elif args.task == 'pheno' or args.task == 'delirium' or args.task == 'sud':
 else:
     raise ValueError("Task is invalid")
 
-output_dir = args.output_dir / args.task
+config_path = str(ROOT_PATH / "src/cmehr/preprocess/mimic4/mimic4models/resources/discretizer_config.json")
+channel_path = str(ROOT_PATH / "src/cmehr/preprocess/mimic4/mimic4models/resources/channel_info.json")
+output_dir = args.output_dir / "_".join(args.modality_type) / args.task
 os.makedirs(output_dir, exist_ok=True)
 print(args)
 
@@ -52,10 +65,8 @@ class Discretizer_multi(Discretizer):
     '''
 
     def __init__(self, timestep=0.8, store_masks=True, impute_strategy='zero', start_time='zero',
-                 config_path=str(
-                     ROOT_PATH / "src/cmehr/dataset/mimic4/mimic4models/resources/discretizer_config.json"),
-                 channel_path=str(
-                     ROOT_PATH / "src/cmehr/dataset/mimic4/mimic4models/resources/channel_info.json")
+                 config_path=config_path,
+                 channel_path=channel_path
                  ):
         super(Discretizer_multi, self).__init__(
             timestep, store_masks, impute_strategy, start_time, config_path)
@@ -227,12 +238,10 @@ def extract_irregular(dataPath_in, dataPath_out):
     """ Extract irregular time series """
 
     # Opening JSON file
-    channel_info_file = open(str(
-        ROOT_PATH / "src/cmehr/dataset/mimic4/mimic4models/resources/channel_info.json"))
+    channel_info_file = open(channel_path)
     channel_info = json.load(channel_info_file)
 
-    dis_config_file = open(str(
-        ROOT_PATH / "src/cmehr/dataset/mimic4/mimic4models/resources/discretizer_config.json"))
+    dis_config_file = open(config_path)
     dis_config = json.load(dis_config_file)
 
     channel_name = dis_config['id_to_channel']
@@ -371,8 +380,43 @@ def diff_float(time1, time2):
     h = (time2 - time1).astype('timedelta64[m]').astype(int)
     return h / 60.0
 
+def merge_cxr(cxr_csv_file: str, list_csv_file: str, ts_data: List, period_length: int, dataPath_out: str):
+    list_csv_df = pd.read_csv(list_csv_file)
+    name_stay_id_dict = dict(
+        zip(list_csv_df['stay'], list_csv_df['stay_id']))
+    cxr_df = pd.read_csv(cxr_csv_file)
+    new_ts_list = []
+    suceed = 0
+    for idx, ts_dict in tqdm(enumerate(ts_data), total=len(ts_data), desc="Merge CXR data"):
+        name = ts_dict['name']
+        stay_id = name_stay_id_dict[name]
+        cxr_data = cxr_df[cxr_df['stay_id'] == stay_id]
+        cxr_data = cxr_data.sort_values(by=['StudyDateTime'])
+        if len(cxr_data) == 0:
+            continue
+        cxr_time = pd.to_datetime(
+            cxr_data['StudyDateTime'], format="%Y-%m-%d %H:%M:%S")
+        in_time = pd.to_datetime(
+            cxr_data['intime'], format="%Y-%m-%d %H:%M:%S")
+        timediff = (cxr_time - in_time).values / \
+            np.timedelta64(1, 'h')
+        indices = np.where(timediff <= period_length)[0]
+        if len(indices) == 0:
+            continue
+        ts_dict['cxr_path'] = cxr_data['path'].values[indices].tolist()
+        ts_dict['cxr_time'] = timediff[indices]
+        suceed += 1
+        new_ts_list.append(ts_dict)
+
+    print("Suceed Merging: ", suceed)
+    print("Missing Merging: ", len(ts_data) - suceed)
+
+    with open(dataPath_out, 'wb') as f:
+        pickle.dump(new_ts_list, f)
+
+    return
+
 def create_irregular_ts():
-    config_path = ROOT_PATH / "src/cmehr/dataset/mimic4/mimic4models/resources/discretizer_config.json"
     with open(config_path) as f:
         config = json.load(f)
     variables = config['id_to_channel']
@@ -523,6 +567,22 @@ def create_irregular_ts():
             os.path.join(output_dir, f"norm_ts_{mode}.pkl"),
             os.path.join(output_dir, 'mean_std.pkl')
         )
+
+    if "CXR" in args.modality_type:
+        print("Step 5: Load CXR data")
+        mimic4_cxr_csv = args.cxr_csv_path
+
+        for mode in ['train', 'val', 'test']:
+            if "Text" in args.modality_type:
+                # In this case, we already have the p2x data
+                with open(os.path.join(output_dir, f"{mode}_p2x_data.pkl"), 'rb') as f:
+                    tsdata = pickle.load(f)
+            else:
+                with open(os.path.join(output_dir, f"norm_ts_{mode}.pkl"), 'rb') as f:
+                    tsdata = pickle.load(f)
+            merge_cxr(str(mimic4_cxr_csv), str(args.dataset_dir / f"{mode}_listfile.csv"),
+                      tsdata, args.period_length,
+                      os.path.join(output_dir, f"{mode}_p2x_data.pkl"))
 
 
 if __name__ == '__main__':

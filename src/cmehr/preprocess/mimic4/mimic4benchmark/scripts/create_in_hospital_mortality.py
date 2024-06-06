@@ -62,6 +62,8 @@ def process_partition(args, partition, eps=1e-6, n_hours=48):
                 ts_lines = [line for (line, t) in zip(ts_lines, event_times)
                             if -eps < t < n_hours + eps]
 
+                icustay = label_df['Icustay'].iloc[0] 
+
                 # no measurements in ICU
                 if len(ts_lines) == 0:
                     print("\n\t(no events in ICU) ", patient, ts_filename)
@@ -72,7 +74,7 @@ def process_partition(args, partition, eps=1e-6, n_hours=48):
                     outfile.write(header)
                     for line in ts_lines:
                         outfile.write(line)
-                xy_pairs.append((output_ts_filename, mortality, insurance, race, gender, age, marital_status))
+                xy_pairs.append((output_ts_filename, icustay, mortality, insurance, race, gender, age, marital_status))
                 # xy_pairs.append((output_ts_filename, mortality))
 
     print("Number of created samples:", len(xy_pairs))
@@ -82,9 +84,9 @@ def process_partition(args, partition, eps=1e-6, n_hours=48):
         xy_pairs = sorted(xy_pairs)
 
     with open(os.path.join(output_dir, "listfile.csv"), "w") as listfile:
-        listfile.write('stay,y_true\n')
-        for (x, y, i, r, g, a, m) in xy_pairs:
-            listfile.write('{},{:d},{:d},{:d},{:d},{:d},{:d}\n'.format(x, y, i, r, g, a, m))
+        listfile.write('stay,stay_id,y_true,insurance,race,gender,age,marital_status\n')
+        for (x, s, y, i, r, g, a, m) in xy_pairs:
+            listfile.write('{},{},{:d},{:d},{:d},{:d},{:d},{:d}\n'.format(x, s, y, i, r, g, a, m))
         # for (x, y) in xy_pairs:
         #     listfile.write('{},{:d}\n'.format(x, y))
 

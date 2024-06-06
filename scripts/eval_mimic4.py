@@ -4,7 +4,7 @@ import torch
 from tqdm import tqdm
 import torch.nn.functional as F
 from lightning import seed_everything
-from cmehr.dataset import MIMIC4DataModule
+from cmehr.dataset.mimic4_downstream_datasets import MIMIC4DataModule
 from cmehr.models.mimic4.stage1_pretrain_model import MIMIC4PretrainModule
 from sklearn.svm import LinearSVC
 import sklearn.metrics as metrics
@@ -26,12 +26,8 @@ parser = argparse.ArgumentParser(description="Evaluate MIMIC IV")
 parser.add_argument("--batch_size", type=int, default=48)
 parser.add_argument("--num_workers", type=int, default=4)
 parser.add_argument("--first_nrows", type=int, default=-1)
-parser.add_argument("--modeltype", type=str, default="TS_CXR",
-                    choices=["TS_CXR", "TS", "CXR"],
-                    help="Set the model type to use for training")
 parser.add_argument("--ckpt_path", type=str, 
-                    # default="/home/fywang/Documents/EHR_codebase/MMMSPG/log/ckpts/mimic4_ihm_pretrain_2024-06-03_15-05-02/epoch=98-step=6732.ckpt")
-                    default="/home/fywang/Documents/EHR_codebase/MMMSPG/log/ckpts/mimic4_ihm_pretrain_2024-06-04_00-00-49/epoch=96-step=6596.ckpt")
+                    default="")
 parser.add_argument("--seed", type=int, default=42)
 parser.add_argument("--save_feat_dir", type=str, default="../prototype_results")
 args = parser.parse_args()
@@ -77,8 +73,8 @@ def cli_main():
     seed_everything(args.seed)
 
     # This is fixed for MIMIC4
-    args.orig_d_ts = 15
-    args.orig_reg_d_ts = 30
+    args.orig_d_ts = 25
+    args.orig_reg_d_ts = 50
 
     # define datamodule
     if args.first_nrows == -1:
@@ -93,7 +89,7 @@ def cli_main():
     dm = MIMIC4DataModule(  
         mimic_cxr_dir=str(MIMIC_CXR_JPG_PATH),
         file_path=str(
-            ROOT_PATH / f"output_mimic4/TS_CXR/{args.task}"),
+            ROOT_PATH / f"output_mimic4/{args.task}"),
         modeltype=args.modeltype,
         tt_max=args.period_length,
         batch_size=args.batch_size,

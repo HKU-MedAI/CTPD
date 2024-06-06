@@ -30,7 +30,7 @@ parser.add_argument("--devices", type=int, default=1)
 parser.add_argument("--max_length", type=int, default=1024)
 parser.add_argument("--accumulate_grad_batches", type=int, default=1)
 parser.add_argument("--first_nrows", type=int, default=-1)
-parser.add_argument("--ts_learning_rate", type=float, default=1e-3)
+parser.add_argument("--ts_learning_rate", type=float, default=2e-4)
 parser.add_argument("--seed", type=int, default=42)
 args = parser.parse_args()
 
@@ -41,6 +41,7 @@ def cli_main():
     # This is fixed for MIMIC4
     args.orig_d_ts = 25
     args.orig_reg_d_ts = 50
+    # only consider the time series within 100 hours
     args.period_length = 100
 
     # define datamodule
