@@ -22,7 +22,7 @@ class MIMIC4PretrainModule(LightningModule):
                  embed_time: int = 64,
                  embed_dim: int = 128,
                  num_imgs: int = 12,
-                 period_length: float = 300,
+                 period_length: float = 100,
                  cm_loss_weight: float = 0.5,
                  *args,
                  **kwargs
@@ -240,14 +240,13 @@ class MIMIC4PretrainModule(LightningModule):
     
 
 if __name__ == "__main__":
-    from torch.utils.data import DataLoader
     from cmehr.paths import *
     # from cmehr.dataset.mimic4_datamodule import MIMIC4DataModule
     from cmehr.dataset.mimic4_pretraining_datamodule import MIMIC4MultimodalDataModule
 
     datamodule = MIMIC4MultimodalDataModule(
         file_path=str(ROOT_PATH / "output_mimic4/self_supervised_multimodal"),
-        period_length=300
+        period_length=100
     )
     batch = dict()
     for batch in datamodule.val_dataloader():
@@ -255,6 +254,6 @@ if __name__ == "__main__":
     for k, v in batch.items():
         print(f"{k}: ", v.shape)
 
-    model = MIMIC4PretrainModule(period_length=300)
+    model = MIMIC4PretrainModule(period_length=100)
     loss = model(batch)
     print(loss)

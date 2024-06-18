@@ -23,7 +23,7 @@ args = parser.parse_args()
 
 
 def cluster(args):
-    pkl_file = args.save_dir / f"mimic4_{args.task}" / "self_supervised_embs.pkl"
+    pkl_file = args.save_dir / f"mimic4_pretrain/self_supervised_embs.pkl"
     data_dict = load_pkl(pkl_file)
     ts_feat = data_dict["train_ts_embs"]
     ts_feat = rearrange(ts_feat, "b n d -> (b n) d")
@@ -37,26 +37,21 @@ def cluster(args):
         print(f"\nUsing Faiss Kmeans for clustering with {numOfGPUs} GPUs...")
         print(f"\tNum of clusters {args.n_proto}, num of iter {args.n_iter}")
         kmeans = faiss.Kmeans(ts_feat.shape[1], 
-                              args.n_proto, 
-                              niter=args.n_iter, 
+                              args.n_proto,
+                              niter=args.n_iter,
                               nredo=args.n_init,
                               verbose=True, 
                               max_points_per_centroid=len(ts_feat),
                               gpu=numOfGPUs)
         kmeans.train(ts_feat)
         weight = kmeans.centroids[np.newaxis, ...]
-        save_proto_path = args.save_dir / f"mimic4_{args.task}" / f"train_proto_{args.n_proto}.pkl"
+        save_proto_path = args.save_dir / f"mimic4_pretrain" / f"train_proto_{args.n_proto}.pkl"
         save_pkl(save_proto_path, {"prototypes": weight})
 
 
 if __name__ == "__main__":
     # This is fixed for MIMIC4
-    args.orig_d_ts = 15
-    args.orig_reg_d_ts = 30
-
-    if args.task == "ihm":
-        args.period_length = 48
-    elif args.task == "pheno":
-        args.period_length = 24
-
+    args.orig_d_ts = 25
+    args.orig_reg_d_ts = 50
+    args.period_length = 100
     cluster(args)

@@ -22,11 +22,11 @@ class MIMIC4_Dataset(Dataset):
                  img_transform=get_transforms(is_train=False),
                  modeltype: str = "TS_CXR",
                  tt_max: int = 48,
-                 num_imgs: int = 5,
+                 num_imgs: int = 12,
                  first_nrows: Optional[int] = None):
         super().__init__()
 
-        data_path = os.path.join(file_path, f"norm_ts_{split}.pkl")
+        data_path = os.path.join(file_path, f"{split}_p2x_data.pkl")
         with open(data_path, "rb") as f:
             self.data = pickle.load(f)
 
@@ -48,11 +48,11 @@ class MIMIC4_Dataset(Dataset):
 
     def __getitem__(self, idx):
         data_detail = self.data[idx]
-        idx = data_detail['name']
-        reg_ts = data_detail['reg_ts']  # (48, 34)
+        name = data_detail['name']
+        # reg_ts = data_detail['reg_ts']  # (48, 34)
+        # FIXME: This is a bug in the original code
         ts = data_detail['irg_ts']
         ts_mask = data_detail['irg_ts_mask']
-
         label = data_detail["label"]
         ts_tt = data_detail["ts_tt"]
         reg_ts = data_detail["reg_ts"]
@@ -71,6 +71,7 @@ class MIMIC4_Dataset(Dataset):
         reg_ts = torch.tensor(reg_ts, dtype=torch.float)
         ts = torch.tensor(ts, dtype=torch.float)
         ts_mask = torch.tensor(ts_mask, dtype=torch.long)
+        # This is used to normalize the timestamps
         ts_tt = torch.tensor([t/self.tt_max for t in ts_tt], dtype=torch.float)
         cxr_time = [t/self.tt_max for t in cxr_time]
         cxr_time_mask = [1] * len(cxr_time)
@@ -88,12 +89,11 @@ class MIMIC4_Dataset(Dataset):
             cxr_time_mask = torch.tensor(cxr_time_mask, dtype=torch.long)
 
         if 'CXR' not in self.modeltype:
-            return {'idx': idx, 'ts': ts, 'ts_mask': ts_mask,
+            return {'name': name, 'ts': ts, 'ts_mask': ts_mask,
                     'ts_tt': ts_tt, 'reg_ts': reg_ts,
                     "label": label}
-
         else:
-            return {'idx': idx, 'ts': ts, 'ts_mask': ts_mask,
+            return {'name': name, 'ts': ts, 'ts_mask': ts_mask,
                     'ts_tt': ts_tt, 'reg_ts': reg_ts,
                     "label": label,
                     "cxr_imgs": cxr_imgs[-self.num_imgs:],
@@ -107,7 +107,7 @@ class MIMIC4_Dataset(Dataset):
 
 def TSCXRIrgcollate_fn(batch):
     """ Collate fn for irregular time series and notes """
-
+    name = [example['name'] for example in batch]
     ts_input_sequences = pad_sequence(
         [example['ts'] for example in batch], batch_first=True, padding_value=0)
     ts_mask_sequences = pad_sequence(
@@ -124,6 +124,7 @@ def TSCXRIrgcollate_fn(batch):
         cxr_time_mask = torch.stack(
             [example['cxr_time_mask'] for example in batch])
         return {
+            "name": name,
             "ts": ts_input_sequences,
             "ts_mask": ts_mask_sequences,
             "ts_tt": ts_tt,
@@ -136,6 +137,7 @@ def TSCXRIrgcollate_fn(batch):
     else:
         cxr_imgs, cxr_time, cxr_time_mask = None, None, None
         return {
+            "name": name,
             "ts": ts_input_sequences,
             "ts_mask": ts_mask_sequences,
             "ts_tt": ts_tt,
@@ -151,7 +153,7 @@ class MIMIC4DataModule(LightningDataModule):
                  file_path: str = str(ROOT_PATH / "output/ihm"),
                  mimic_cxr_dir: str = str(MIMIC_CXR_JPG_PATH),
                  modeltype: str = "TS_CXR",
-                 tt_max: int = 48,
+                 period_length: int = 48,
                  first_nrows: Optional[int] = None
                  ) -> None:
         super().__init__()
@@ -162,7 +164,7 @@ class MIMIC4DataModule(LightningDataModule):
         self.first_nrows = first_nrows
         self.mimic_cxr_dir = mimic_cxr_dir
         self.modeltype = modeltype
-        self.tt_max = tt_max
+        self.tt_max = period_length
 
     def train_dataloader(self) -> TRAIN_DATALOADERS:
         dataset = MIMIC4_Dataset(
@@ -218,7 +220,7 @@ class MIMIC4DataModule(LightningDataModule):
 if __name__ == "__main__":
     dataset = MIMIC4_Dataset(
         mimic_cxr_dir=str(MIMIC_CXR_JPG_PATH),
-        file_path=str(ROOT_PATH / "output_mimic4/self_supervised_multimodal"),
+        file_path=str(ROOT_PATH / "output_mimic4/TS_CXR/ihm"),
         split="val",
         first_nrows=None
     )

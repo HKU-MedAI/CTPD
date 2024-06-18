@@ -20,11 +20,6 @@ from cmehr.preprocess.mimic4.mimic4models.readers import (InHospitalMortalityRea
 import cmehr.preprocess.mimic4.mimic4models.common_utils as common_utils
 from cmehr.preprocess.mimic4.mimic4models.preprocessing import Discretizer
 
-'''
-python create_irregular_ts.py --task pheno  --modality_type TS CXR \
-    --dataset_dir /disk1/fywang/EHR_dataset/mimiciv_fairness_benchmark \
-    --cxr_csv_path /home/fywang/Documents/EHR_codebase/MMMSPG/data/mimiciv_fairness_benchmark/cxr/admission_w_cxr.csv
-'''
 
 parser = argparse.ArgumentParser(
     description='Create irregular time series from MIMIC 4')

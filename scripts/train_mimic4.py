@@ -11,7 +11,7 @@ import torch
 from lightning import Trainer, seed_everything
 from lightning.pytorch.callbacks import LearningRateMonitor, ModelCheckpoint, EarlyStopping
 from lightning.pytorch.loggers import WandbLogger
-from cmehr.dataset import MIMIC4DataModule
+from cmehr.dataset.mimic4_downstream_datamodule import MIMIC4DataModule
 from cmehr.models.mimic4 import (
     CNNModule, ProtoTSModel, IPNetModule, GRUDModule, SEFTModule, RNNModule, LSTMModule,
     MTANDModule, DGM2OModule, MedFuseModule, TransformerModule, MILLETModule, OTKModule,
@@ -66,8 +66,8 @@ def cli_main():
         seed_everything(seed)
 
         # This is fixed for MIMIC4
-        args.orig_d_ts = 15
-        args.orig_reg_d_ts = 30
+        args.orig_d_ts = 25
+        args.orig_reg_d_ts = 50
 
         # define datamodule
         if args.first_nrows == -1:
@@ -80,10 +80,11 @@ def cli_main():
 
         dm = MIMIC4DataModule(
             mimic_cxr_dir=str(MIMIC_CXR_JPG_PATH),
+            # by default, we use this multimodal dataset.
             file_path=str(
                 ROOT_PATH / f"output_mimic4/TS_CXR/{args.task}"),
             modeltype=args.modeltype,
-            tt_max=args.period_length,
+            period_length=args.period_length,
             batch_size=args.batch_size,
             num_workers=args.num_workers,
             first_nrows=args.first_nrows)

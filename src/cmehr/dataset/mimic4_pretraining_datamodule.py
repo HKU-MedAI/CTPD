@@ -55,7 +55,6 @@ class MIMIC4MultimodalDataset(Dataset):
         self.num_imgs = num_imgs
         self.ts_max = period_length
 
-        # filter data with more than 1000 irregular time steps
         print("Number of original samples: ", len(self.data))
         self.data = list(filter(lambda x: len(x['irg_ts']) < 1000, self.data))
         print(f"Number of filtered samples in {split} set: {len(self.data)}")
@@ -63,6 +62,7 @@ class MIMIC4MultimodalDataset(Dataset):
         if self.first_nrows != None:
             self.data = self.data[:self.first_nrows]
 
+        # To remove the time steps greater than ts_max
         for sample in self.data:
             ts_indices = np.where(np.array(sample["ts_tt"]) <= self.ts_max)[0]
             if len(ts_indices) == 0:
@@ -163,10 +163,10 @@ class MIMIC4MultimodalDataModule(LightningDataModule):
     def __init__(self,
                  batch_size: int = 4,
                  num_workers: int = 1,
-                 file_path: str = str(ROOT_PATH / "output/ihm"),
+                 file_path: str = str(ROOT_PATH / "output_mimic4/self_supervised_multimodal"),
                  mimic_cxr_dir: str = str(MIMIC_CXR_JPG_PATH),
                  modeltype: str = "TS_CXR",
-                 period_length: int = 48,
+                 period_length: int = 100,
                  first_nrows: Optional[int] = None
                  ) -> None:
         super().__init__()
