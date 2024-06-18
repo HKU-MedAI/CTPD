@@ -2,9 +2,10 @@ import argparse
 import yaml
 import os
 # FIXME: update import path
-from cmehr.dataset.mimic3.mimic3benchmark.mimic3csv import *
-from cmehr.dataset.mimic3.mimic3benchmark.preprocessing import add_hcup_ccs_2015_groups, make_phenotype_label_matrix
-from cmehr.dataset.mimic3.mimic3benchmark.util import dataframe_from_csv
+from cmehr.preprocess.mimic3.mimic3benchmark.mimic3csv import *
+from cmehr.preprocess.mimic3.mimic3benchmark.preprocessing import add_hcup_ccs_2015_groups, make_phenotype_label_matrix
+from cmehr.preprocess.mimic3.mimic3benchmark.util import dataframe_from_csv
+
 
 parser = argparse.ArgumentParser(description='Extract per-subject data from MIMIC-III CSV files.')
 parser.add_argument('--mimic3_path', type=str, 

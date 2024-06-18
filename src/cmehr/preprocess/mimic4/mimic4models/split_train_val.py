@@ -8,7 +8,11 @@ def main():
     parser.add_argument('--dataset_dir', type=str, 
                         default=os.path.join(os.path.dirname(__file__), '../data'),
                         help='Path to the directory which contains the dataset')
+    # parser.add_argument('--task', type=str, default='sud', 
+    #                     choices=['ihm', 'readm' 'pheno', 'delirium', 'sud'],
+    #                     help='Prediction task')
     args, _ = parser.parse_known_args()
+    # args.dataset_dir = os.path.join(args.dataset_dir, args.task)
 
     val_patients = set()
     with open(os.path.join(os.path.dirname(__file__), 'resources/valset.csv'), 'r') as valset_file:

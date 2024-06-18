@@ -5,7 +5,7 @@ import pandas as pd
 from pandas import DataFrame, Series
 import json
 
-from mimic3benchmark.util import dataframe_from_csv
+from cmehr.preprocess.mimic3.mimic3benchmark.util import dataframe_from_csv
 
 ###############################
 # Non-time series preprocessing

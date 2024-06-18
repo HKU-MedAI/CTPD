@@ -90,7 +90,7 @@ def process_partition(args, delirium_codes,
                     if code in delirium_codes:
                         delirium_label = 1
                         pos += 1
-                xty_triples.append((output_ts_filename, n_hours, delirium_label, insurance, race, gender, age, marital_status))
+                xty_triples.append((output_ts_filename, icustay, n_hours, delirium_label, insurance, race, gender, age, marital_status))
 
     print("Number of created samples:", len(xty_triples))
     print("Number of positive samples:", pos)
@@ -101,9 +101,9 @@ def process_partition(args, delirium_codes,
     if partition == "train":
         xty_triples = sorted(xty_triples)
     with open(os.path.join(output_dir, "listfile.csv"), "w") as listfile:
-        listfile.write('stay,period_length,y_true,insurance,race,gender,age,marital_status\n')
-        for (x, t, y, i, r, g, a, m) in xty_triples:
-            listfile.write('{},{:.6f},{:d},{:d},{:d},{:d},{:d},{:d}\n'.format(x, t, y, i, r, g, a, m))
+        listfile.write('stay,stay_id,period_length,y_true,insurance,race,gender,age,marital_status\n')
+        for (x, s, t, y, i, r, g, a, m) in xty_triples:
+            listfile.write('{},{},{:.6f},{:d},{:d},{:d},{:d},{:d},{:d}\n'.format(x, s, t, y, i, r, g, a, m))
 
 
 def main():

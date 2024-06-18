@@ -325,7 +325,7 @@ class DeliriumReader(Reader):
                 "header": header,
                 "name": name}
 
-class SudReader(Reader):
+class OudReader(Reader):
     def __init__(self, dataset_dir, listfile=None, columns=[]):
         """ Reader for readmission-30d prediction task.
 
@@ -573,6 +573,77 @@ class PhenotypingReader(Reader):
                 "gender": gender,
                 "age": age,
                 "marital_status": marital_status,
+                "header": header,
+                "name": name}
+
+
+class MultimodalReader(Reader):
+    def __init__(self, dataset_dir, listfile=None, period_length=0., columns=[]):
+        """ Reader for in-hospital moratality prediction task.
+
+        :param dataset_dir:   Directory where timeseries files are stored.
+        :param listfile:      Path to a listfile. If this parameter is left `None` then
+                              `dataset_dir/listfile.csv` will be used.
+        :param period_length: Length of the period (in hours) from which the prediction is done.
+        """
+        Reader.__init__(self, dataset_dir, listfile)
+        from ast import literal_eval
+        self._data = [line.split(',') for line in self._data]
+        self.ts_ids = []
+        self.dicom_ids = []
+        for sample in self._data:
+            dicom_id_str = ",".join(sample[3:]).replace("\n", "")
+            dicom_ids = literal_eval(dicom_id_str)
+            self.ts_ids.append(sample[0])
+            self.dicom_ids.append(dicom_ids)
+        self._period_length = period_length
+        self.columns = columns
+
+    def _read_timeseries(self, ts_filename):
+        ret = []
+        with open(os.path.join(self._dataset_dir, ts_filename), "r") as tsfile:
+            header = tsfile.readline().strip().split(',')
+            if len(self.columns) > 0:
+                indices = [header.index(column)
+                           for column in ["Hours"] + self.columns]
+            else:
+                indices = [i for i in range(len(header))]
+            assert header[0] == "Hours"
+            for line in tsfile:
+                mas = line.strip().split(',')
+                ret.append(np.array(mas)[indices])
+        return (np.stack(ret), header)
+
+    def read_example(self, index):
+        """ Reads the example with given index.
+
+        :param index: Index of the line of the listfile to read (counting starts from 0).
+        :return: Dictionary with the following keys:
+            X : np.array
+                2D array containing all events. Each row corresponds to a moment.
+                First column is the time and other columns correspond to different
+                variables.
+            t : float
+                Length of the data in hours. Note, in general, it is not equal to the
+                timestamp of last event.
+            y : int (0 or 1)
+                In-hospital mortality.
+            header : array of strings
+                Names of the columns. The ordering of the columns is always the same.
+            name: Name of the sample.
+        """
+        if index < 0 or index >= len(self._data):
+            raise ValueError(
+                "Index must be from 0 (inclusive) to number of lines (exclusive).")
+
+        name = self.ts_ids[index]
+        t = self._period_length
+        y = self.dicom_ids[index]
+        (X, header) = self._read_timeseries(name)
+
+        return {"X": X,
+                "t": t,
+                "dicom_ids": y,
                 "header": header,
                 "name": name}
 

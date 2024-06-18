@@ -1,9 +1,10 @@
 import argparse
 import yaml
 
-from mimic4benchmark.mimic4csv import *
-from mimic4benchmark.preprocessing import add_hcup_ccs_2015_groups, make_phenotype_label_matrix
-from mimic4benchmark.util import dataframe_from_csv
+from cmehr.preprocess.mimic4.mimic4benchmark.mimic4csv import *
+from cmehr.preprocess.mimic4.mimic4benchmark.preprocessing import add_hcup_ccs_2015_groups, make_phenotype_label_matrix
+from cmehr.preprocess.mimic4.mimic4benchmark.util import dataframe_from_csv
+
 
 parser = argparse.ArgumentParser(
     description='Extract per-subject data from MIMIC-IV CSV files.')

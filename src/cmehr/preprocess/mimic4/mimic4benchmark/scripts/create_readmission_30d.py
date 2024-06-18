@@ -41,8 +41,8 @@ def process_partition(args, partition, eps=1e-6, n_hours=48):
                 if label_df.shape[0] == 0:
                     continue
                 
-                stay_id = int(label_df.iloc[0]["Icustay"])
-                readmission_30d = int(stay_df[stay_df.stay_id == stay_id].iloc[0].readmission_30d)
+                icustay = int(label_df.iloc[0]["Icustay"])
+                readmission_30d = int(stay_df[stay_df.stay_id == icustay].iloc[0].readmission_30d)
 
                 mortality = int(label_df.iloc[0]["Mortality"])
                 if mortality == 1:
@@ -91,7 +91,7 @@ def process_partition(args, partition, eps=1e-6, n_hours=48):
                         outfile.write(line)
 
                 # TODO: add sensitive information here
-                xy_pairs.append((output_ts_filename, readmission_30d, insurance, race, gender, age, marital_status))
+                xy_pairs.append((output_ts_filename, icustay, readmission_30d, insurance, race, gender, age, marital_status))
 
 
     print("Number of created samples:", len(xy_pairs))
@@ -101,9 +101,9 @@ def process_partition(args, partition, eps=1e-6, n_hours=48):
         xy_pairs = sorted(xy_pairs)
 
     with open(os.path.join(output_dir, "listfile.csv"), "w") as listfile:
-        listfile.write('stay,y_true,insurance,race,gender,age,marital_status\n')
-        for (x, y, i, r, g, a, m) in xy_pairs:
-            listfile.write('{},{:d},{:d},{:d},{:d},{:d},{:d}\n'.format(x, y, i, r, g, a, m))
+        listfile.write('stay,stay_id,y_true,insurance,race,gender,age,marital_status\n')
+        for (x, s, y, i, r, g, a, m) in xy_pairs:
+            listfile.write('{},{},{:d},{:d},{:d},{:d},{:d},{:d}\n'.format(x, s, y, i, r, g, a, m))
 
 
 def main():

@@ -16,7 +16,7 @@ import ipdb
 
 from cmehr.paths import *
 from cmehr.preprocess.mimic4.mimic4models.readers import (InHospitalMortalityReader, PhenotypingReader, ReadmissionReader, 
-                                                         DeliriumReader, SudReader, Reader)
+                                                          DeliriumReader, OudReader, Reader)
 import cmehr.preprocess.mimic4.mimic4models.common_utils as common_utils
 from cmehr.preprocess.mimic4.mimic4models.preprocessing import Discretizer
 
@@ -24,7 +24,7 @@ from cmehr.preprocess.mimic4.mimic4models.preprocessing import Discretizer
 parser = argparse.ArgumentParser(
     description='Create irregular time series from MIMIC 4')
 parser.add_argument("--task", default='sud', type=str,
-                    choices=["ihm", "pheno", "readm", "delirium", "sud"],
+                    choices=["ihm", "pheno", "readm", "delirium", "oud"],
                     help="task name to create data")
 parser.add_argument("--output_dir", type=str,
                     default=ROOT_PATH / "output_mimic4")
@@ -42,13 +42,11 @@ args = parser.parse_args()
 args.dataset_dir = Path(args.dataset_dir) / args.task
 if args.task == 'ihm' or args.task == 'readm':
     args.period_length = 48
-elif args.task == 'pheno' or args.task == 'delirium' or args.task == 'sud':
+elif args.task == 'pheno' or args.task == 'delirium' or args.task == 'oud':
     args.period_length = 24
 else:
     raise ValueError("Task is invalid")
 
-config_path = str(ROOT_PATH / "src/cmehr/preprocess/mimic4/mimic4models/resources/discretizer_config.json")
-channel_path = str(ROOT_PATH / "src/cmehr/preprocess/mimic4/mimic4models/resources/channel_info.json")
 output_dir = args.output_dir / "_".join(args.modality_type) / args.task
 os.makedirs(output_dir, exist_ok=True)
 print(args)
@@ -60,8 +58,10 @@ class Discretizer_multi(Discretizer):
     '''
 
     def __init__(self, timestep=0.8, store_masks=True, impute_strategy='zero', start_time='zero',
-                 config_path=config_path,
-                 channel_path=channel_path
+                 config_path=str(
+                     ROOT_PATH / "src/cmehr/preprocess/mimic4/mimic4models/resources/discretizer_config.json"),
+                 channel_path=str(
+                     ROOT_PATH / "src/cmehr/preprocess/mimic4/mimic4models/resources/channel_info.json")
                  ):
         super(Discretizer_multi, self).__init__(
             timestep, store_masks, impute_strategy, start_time, config_path)
@@ -121,6 +121,11 @@ class Discretizer_multi(Discretizer):
                     continue
                 channel = header[j]
                 channel_id = self._channel_to_id[channel]
+
+                lb = self._normal_values_range[channel][0]
+                ub = self._normal_values_range[channel][1]
+                if not lb <= float(row[j]) <= ub:
+                    continue
 
                 total_data += 1
                 if mask[bin_id][channel_id] == 1:
@@ -233,10 +238,12 @@ def extract_irregular(dataPath_in, dataPath_out):
     """ Extract irregular time series """
 
     # Opening JSON file
-    channel_info_file = open(channel_path)
+    channel_info_file = open(str(
+        ROOT_PATH / "src/cmehr/preprocess/mimic4/mimic4models/resources/channel_info.json"))
     channel_info = json.load(channel_info_file)
 
-    dis_config_file = open(config_path)
+    dis_config_file = open(str(
+        ROOT_PATH / "src/cmehr/preprocess/mimic4/mimic4models/resources/discretizer_config.json"))
     dis_config = json.load(dis_config_file)
 
     channel_name = dis_config['id_to_channel']
@@ -375,6 +382,7 @@ def diff_float(time1, time2):
     h = (time2 - time1).astype('timedelta64[m]').astype(int)
     return h / 60.0
 
+
 def merge_cxr(cxr_csv_file: str, list_csv_file: str, ts_data: List, period_length: int, dataPath_out: str):
     list_csv_df = pd.read_csv(list_csv_file)
     name_stay_id_dict = dict(
@@ -411,7 +419,9 @@ def merge_cxr(cxr_csv_file: str, list_csv_file: str, ts_data: List, period_lengt
 
     return
 
+
 def create_irregular_ts():
+    config_path = ROOT_PATH / "src/cmehr/preprocess/mimic4/mimic4models/resources/discretizer_config.json"
     with open(config_path) as f:
         config = json.load(f)
     variables = config['id_to_channel']
@@ -489,17 +499,17 @@ def create_irregular_ts():
             columns=variables
         )
     elif args.task == "sud":
-        train_reader = SudReader(
+        train_reader = OudReader(
             dataset_dir=args.dataset_dir / "train",
             listfile=args.dataset_dir / "train_listfile.csv",
             columns=variables
         )
-        val_reader = SudReader(
+        val_reader = OudReader(
             dataset_dir=args.dataset_dir / "train",
             listfile=args.dataset_dir / "val_listfile.csv",
             columns=variables
         )
-        test_reader = SudReader(
+        test_reader = OudReader(
             dataset_dir=args.dataset_dir / "test",
             listfile=args.dataset_dir / "test_listfile.csv",
             columns=variables

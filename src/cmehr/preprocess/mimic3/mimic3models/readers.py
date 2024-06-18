@@ -314,7 +314,7 @@ class DeliriumReader(Reader):
                 "header": header,
                 "name": name}
 
-class SudReader(Reader):
+class OudReader(Reader):
     def __init__(self, dataset_dir, listfile=None, columns=[]):
         """ Reader for readmission-30d prediction task.
 

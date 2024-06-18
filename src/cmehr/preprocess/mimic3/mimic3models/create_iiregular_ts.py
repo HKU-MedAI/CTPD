@@ -11,17 +11,17 @@ from pathlib import Path
 import numpy as np
 import statistics as stat
 
-from cmehr.dataset.mimic3.mimic3models.readers import (InHospitalMortalityReader, PhenotypingReader, ReadmissionReader,
-                                                         DeliriumReader, SudReader, Reader)
-import cmehr.dataset.mimic3.mimic3models.common_utils as common_utils
-from cmehr.dataset.mimic3.mimic3models.preprocessing import Discretizer
+from cmehr.preprocess.mimic3.mimic3models.readers import (InHospitalMortalityReader, PhenotypingReader, ReadmissionReader,
+                                                         DeliriumReader, OudReader, Reader)
+import cmehr.preprocess.mimic3.mimic3models.common_utils as common_utils
+from cmehr.preprocess.mimic3.mimic3models.preprocessing import Discretizer
 from cmehr.paths import *
 
 
 parser = argparse.ArgumentParser(
     description='Create irregular time series from MIMIC 3')
 parser.add_argument("--task", default='delirium', type=str,
-                    choices=["ihm", "pheno", "readm", "delirium", "sud"],
+                    choices=["ihm", "pheno", "readm", "delirium", "oud"],
                     help="task name to create data")
 parser.add_argument("--output_dir", type=str, default=ROOT_PATH / "output_mimic3")
 parser.add_argument('--timestep', type=float, default=1.00,
@@ -34,7 +34,7 @@ args = parser.parse_args()
 args.dataset_dir = Path(args.dataset_dir) / args.task
 if args.task == 'ihm' or args.task == 'readm':
     args.period_length = 48
-elif args.task == 'pheno' or args.task == 'delirium' or args.task == 'sud':
+elif args.task == 'pheno' or args.task == 'delirium' or args.task == 'oud':
     args.period_length = 24
 else:
     raise ValueError("Task is invalid")
@@ -113,6 +113,11 @@ class Discretizer_multi(Discretizer):
                     continue
                 channel = header[j]
                 channel_id = self._channel_to_id[channel]
+
+                lb = self._normal_values_range[channel][0]
+                ub = self._normal_values_range[channel][1]
+                if not lb <= float(row[j]) <= ub:
+                    continue
 
                 total_data += 1
                 if mask[bin_id][channel_id] == 1:
@@ -447,17 +452,17 @@ def create_irregular_ts():
             columns=variables
         )
     elif args.task == "sud":
-        train_reader = SudReader(
+        train_reader = OudReader(
             dataset_dir=args.dataset_dir / "train",
             listfile=args.dataset_dir / "train_listfile.csv",
             columns=variables
         )
-        val_reader = SudReader(
+        val_reader = OudReader(
             dataset_dir=args.dataset_dir / "train",
             listfile=args.dataset_dir / "val_listfile.csv",
             columns=variables
         )
-        test_reader = SudReader(
+        test_reader = OudReader(
             dataset_dir=args.dataset_dir / "test",
             listfile=args.dataset_dir / "test_listfile.csv",
             columns=variables

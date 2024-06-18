@@ -17,6 +17,7 @@ class Discretizer:
             self._is_categorical_channel = config['is_categorical_channel']
             self._possible_values = config['possible_values']
             self._normal_values = config['normal_values']
+            self._normal_values_range = config['normal_values_range']
 
         self._header = ["Hours"] + self._id_to_channel
         self._timestep = timestep

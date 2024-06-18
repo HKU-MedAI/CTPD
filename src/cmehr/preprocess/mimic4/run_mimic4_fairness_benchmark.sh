@@ -25,9 +25,10 @@
 # python -m mimic4models.create_irregular_ts --task ihm --dataset_dir /disk1/fywang/EHR_dataset/mimiciv_fairness_benchmark
 # python -m mimic4models.create_irregular_ts --task readm --dataset_dir /disk1/fywang/EHR_dataset/mimiciv_fairness_benchmark
 
-# python -m mimic4models.create_irregular_ts --task pheno  --modality_type TS CXR \
-#     --dataset_dir /disk1/fywang/EHR_dataset/mimiciv_fairness_benchmark \
-#     --cxr_csv_path /home/fywang/Documents/EHR_codebase/MMMSPG/data/mimiciv_fairness_benchmark/cxr/admission_w_cxr.csv
+
+python -m mimic4models.create_irregular_ts --task pheno  --modality_type TS CXR \
+    --dataset_dir /disk1/fywang/EHR_dataset/mimiciv_fairness_benchmark \
+    --cxr_csv_path /home/fywang/Documents/EHR_codebase/MMMSPG/data/mimiciv_fairness_benchmark/cxr/admission_w_cxr.csv
 
 python -m mimic4models.create_irregular_ts --task delirium  --modality_type TS CXR \
     --dataset_dir /disk1/fywang/EHR_dataset/mimiciv_fairness_benchmark \

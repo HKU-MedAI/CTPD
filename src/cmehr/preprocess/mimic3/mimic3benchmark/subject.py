@@ -2,7 +2,7 @@ import numpy as np
 import os
 import pandas as pd
 
-from mimic3benchmark.util import dataframe_from_csv
+from cmehr.preprocess.mimic3.mimic3benchmark.util import dataframe_from_csv
 
 
 def read_stays(subject_path):

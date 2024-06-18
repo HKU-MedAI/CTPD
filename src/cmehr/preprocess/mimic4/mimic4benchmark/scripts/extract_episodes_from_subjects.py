@@ -4,8 +4,8 @@ import os
 import pandas as pd
 from tqdm import tqdm
 
-from mimic4benchmark.subject import read_stays, read_diagnoses, read_events, get_events_for_stay, add_hours_elpased_to_events, convert_events_to_timeseries
-from mimic4benchmark.preprocessing import read_itemid_to_variable_map, map_itemids_to_variables, clean_events, assemble_episodic_data
+from cmehr.preprocess.mimic4.mimic4benchmark.subject import read_stays, read_diagnoses, read_events, get_events_for_stay, add_hours_elpased_to_events, convert_events_to_timeseries
+from cmehr.preprocess.mimic4.mimic4benchmark.preprocessing import read_itemid_to_variable_map, map_itemids_to_variables, clean_events, assemble_episodic_data
 
 
 parser = argparse.ArgumentParser(

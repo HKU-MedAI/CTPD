@@ -3,7 +3,7 @@ import numpy as np
 import os
 import pandas as pd
 from tqdm import tqdm
-from cmehr.dataset.mimic3.mimic3benchmark.util import dataframe_from_csv
+from cmehr.preprocess.mimic3.mimic3benchmark.util import dataframe_from_csv
 
 
 def read_patients_table(mimic3_path):

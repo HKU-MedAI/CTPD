@@ -3,8 +3,8 @@ import os
 import sys
 from tqdm import tqdm
 
-from mimic3benchmark.subject import read_stays, read_diagnoses, read_events, get_events_for_stay, add_hours_elpased_to_events, convert_events_to_timeseries
-from mimic3benchmark.preprocessing import read_itemid_to_variable_map, map_itemids_to_variables, clean_events, assemble_episodic_data
+from cmehr.preprocess.mimic3.mimic3benchmark.subject import read_stays, read_diagnoses, read_events, get_events_for_stay, add_hours_elpased_to_events, convert_events_to_timeseries
+from cmehr.preprocess.mimic3.mimic3benchmark.preprocessing import read_itemid_to_variable_map, map_itemids_to_variables, clean_events, assemble_episodic_data
 
 
 parser = argparse.ArgumentParser(description='Extract episodes from per-subject data.')

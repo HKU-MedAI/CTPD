@@ -91,32 +91,142 @@
     "White Blood Cell Count": []
   },
   "normal_values": {
-    "Heart Rate": 0.0,
-    "Systolic Blood Pressure": 0.0,
-    "Diastolic Blood Pressure": 0.0,
-    "Mean Blood Pressure": 0.0,
-    "Respiratory Rate": 0.0,
-    "Body Temperature": 0.0,
-    "Oxygen Saturation": 0.0,
-    "Arterial Base Excess": 0.0,
-    "Arterial Carbon Dioxide Pressure": 0.0,
-    "Arterial Oxygen Pressure": 0.0,
-    "Arterial pH": 0.0,
-    "Blood Urea Nitrogen": 0.0,
-    "Creatinine": 0.0,
-    "Ionized Calcium": 0.0,
-    "Serum Chloride": 0.0,
-    "Serum Glucose": 0.0,
-    "Fingerstick Glucose": 0.0,
-    "Anion Gap": 0.0,
-    "Serum Bicarbonate": 0.0,
-    "Magnesium": 0.0,
-    "Phosphorus": 0.0,
-    "Serum Potassium": 0.0,
-    "Serum Sodium": 0.0,
-    "Serum Hematocrit": 0.0,
-    "Hemoglobin": 0.0,
-    "Platelet Count": 0.0,
-    "White Blood Cell Count": 0.0
-  }
+    "Anion Gap": 13.0,
+    "Arterial Base Excess": 2.0,
+    "Arterial Carbon Dioxide Pressure": 40.0,
+    "Arterial Oxygen Pressure": 112.0,
+    "Arterial pH": 7.39,
+    "Blood Urea Nitrogen": 21.0,
+    "Body Temperature": 37.0,
+    "Creatinine": 1.0,
+    "Diastolic Blood Pressure": 59.0,
+    "Fingerstick Glucose": 134.0,
+    "Heart Rate": 85.0,
+    "Hemoglobin": 10.2,
+    "Ionized Calcium": 1.13,
+    "Magnesium": 2.0,
+    "Mean Blood Pressure": 78.0,
+    "Oxygen Saturation": 98.0,
+    "Phosphorus": 42.0,
+    "Platelet Count": 207.0,
+    "Respiratory Rate": 19.0,
+    "Serum Bicarbonate": 25.0,
+    "Serum Chloride": 105.0,
+    "Serum Glucose": 124.0,
+    "Serum Hematocrit": 29.3,
+    "Serum Potassium": 4.0,
+    "Serum Sodium": 139.0,
+    "Systolic Blood Pressure": 120.0,
+    "White Blood Cell Count": 9.8
+},
+  "normal_values_range": {
+    "Anion Gap": [
+        6.0,
+        30.0
+    ],
+    "Arterial Base Excess": [
+        0.0,
+        17.0
+    ],
+    "Arterial Carbon Dioxide Pressure": [
+        22.0,
+        86.0
+    ],
+    "Arterial Oxygen Pressure": [
+        45.0,
+        459.0
+    ],
+    "Arterial pH": [
+        7.08,
+        7.56
+    ],
+    "Blood Urea Nitrogen": [
+        3.0,
+        131.0
+    ],
+    "Body Temperature": [
+        34.5999993218316,
+        39.38890075683594
+    ],
+    "Creatinine": [
+        0.3,
+        9.9
+    ],
+    "Diastolic Blood Pressure": [
+        28.0,
+        110.0
+    ],
+    "Fingerstick Glucose": [
+        52.0,
+        409.0
+    ],
+    "Heart Rate": [
+        46.0,
+        142.0
+    ],
+    "Hemoglobin": [
+        6.2,
+        16.0
+    ],
+    "Ionized Calcium": [
+        0.75,
+        1.57
+    ],
+    "Magnesium": [
+        1.2,
+        3.3
+    ],
+    "Mean Blood Pressure": [
+        43.0,
+        134.0
+    ],
+    "Oxygen Saturation": [
+        67.0,
+        100.0
+    ],
+    "Phosphorus": [
+        42.0,
+        42.0
+    ],
+    "Platelet Count": [
+        13.0,
+        840.0
+    ],
+    "Respiratory Rate": [
+        1.0,
+        40.0
+    ],
+    "Serum Bicarbonate": [
+        11.0,
+        42.0
+    ],
+    "Serum Chloride": [
+        85.0,
+        125.0
+    ],
+    "Serum Glucose": [
+        53.0,
+        440.0
+    ],
+    "Serum Hematocrit": [
+        19.2,
+        46.3
+    ],
+    "Serum Potassium": [
+        2.8,
+        6.6
+    ],
+    "Serum Sodium": [
+        120.0,
+        157.0
+    ],
+    "Systolic Blood Pressure": [
+        68.0,
+        193.0
+    ],
+    "White Blood Cell Count": [
+        0.3,
+        43.4
+    ]
+}
 }
