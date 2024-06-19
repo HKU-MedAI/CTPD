@@ -3,28 +3,29 @@ import os
 import sys
 from tqdm import tqdm
 
-from cmehr.preprocess.mimic3.mimic3benchmark.subject import read_stays, read_diagnoses, read_events, get_events_for_stay, add_hours_elpased_to_events, convert_events_to_timeseries
-from cmehr.preprocess.mimic3.mimic3benchmark.preprocessing import read_itemid_to_variable_map, map_itemids_to_variables, clean_events, assemble_episodic_data
+from mimic3benchmark.subject import read_stays, read_diagnoses, read_events, get_events_for_stay, \
+    add_hours_elpased_to_events
+from mimic3benchmark.subject import convert_events_to_timeseries, get_first_valid_from_timeseries
+from mimic3benchmark.preprocessing import read_itemid_to_variable_map, map_itemids_to_variables, clean_events
+from mimic3benchmark.preprocessing import assemble_episodic_data
 
 
-parser = argparse.ArgumentParser(description='Extract episodes from per-subject data.')
-parser.add_argument('--subjects_root_path', type=str, 
-                    default=os.path.join(os.path.dirname(__file__), '../../data/root/'),
+parser = argparse.ArgumentParser(
+    description='Extract episodes from per-subject data.')
+parser.add_argument('subjects_root_path', type=str,
                     help='Directory containing subject sub-directories.')
 parser.add_argument('--variable_map_file', type=str,
-                    default=os.path.join(os.path.dirname(__file__), '../resources/itemid_to_variable_map.csv'),
+                    default=os.path.join(os.path.dirname(
+                        __file__), '../resources/itemid_to_variable_map.csv'),
                     help='CSV containing ITEMID-to-VARIABLE map.')
 parser.add_argument('--reference_range_file', type=str,
-                    default=os.path.join(os.path.dirname(__file__), '../resources/variable_ranges.csv'),
+                    default=os.path.join(os.path.dirname(
+                        __file__), '../resources/variable_ranges.csv'),
                     help='CSV containing reference ranges for VARIABLEs.')
-parser.add_argument('--clinical-predictor_map_file', type=str,
-                    default=os.path.join(os.path.dirname(__file__), '../resources/clinical_predictor_map.json'),
-                    help='JSON file containing clinical predictors map.')
 args, _ = parser.parse_known_args()
 
-var_map = read_itemid_to_variable_map(args.variable_map_file, args.clinical_predictor_map_file)
-# variables = var_map.VARIABLE.unique()
-variables = var_map.PREDICTOR.unique()
+var_map = read_itemid_to_variable_map(args.variable_map_file)
+variables = var_map.VARIABLE.unique()
 
 for subject_dir in tqdm(os.listdir(args.subjects_root_path), desc='Iterating over subjects'):
     dn = os.path.join(args.subjects_root_path, subject_dir)
@@ -38,10 +39,13 @@ for subject_dir in tqdm(os.listdir(args.subjects_root_path), desc='Iterating ove
     try:
         # reading tables of this subject
         stays = read_stays(os.path.join(args.subjects_root_path, subject_dir))
-        diagnoses = read_diagnoses(os.path.join(args.subjects_root_path, subject_dir))
-        events = read_events(os.path.join(args.subjects_root_path, subject_dir))
+        diagnoses = read_diagnoses(os.path.join(
+            args.subjects_root_path, subject_dir))
+        events = read_events(os.path.join(
+            args.subjects_root_path, subject_dir))
     except:
-        sys.stderr.write('Error reading from disk for subject: {}\n'.format(subject_id))
+        sys.stderr.write(
+            'Error reading from disk for subject: {}\n'.format(subject_id))
         continue
 
     episodic_data = assemble_episodic_data(stays, diagnoses)
@@ -53,7 +57,6 @@ for subject_dir in tqdm(os.listdir(args.subjects_root_path), desc='Iterating ove
         # no valid events for this subject
         continue
     timeseries = convert_events_to_timeseries(events, variables=variables)
-
     # extracting separate episodes
     for i in range(stays.shape[0]):
         stay_id = stays.ICUSTAY_ID.iloc[i]
@@ -64,17 +67,23 @@ for subject_dir in tqdm(os.listdir(args.subjects_root_path), desc='Iterating ove
         if episode.shape[0] == 0:
             # no data for this episode
             continue
+        
+        # add time elapsed since the beginning of the episode
+        # TODO: The beginning time is defined as the INTIME!
+        episode = add_hours_elpased_to_events(
+            episode, intime).set_index('HOURS').sort_index(axis=0)
+        if stay_id in episodic_data.index:
+            episodic_data.loc[stay_id, 'Weight'] = get_first_valid_from_timeseries(
+                episode, 'Weight')
+            episodic_data.loc[stay_id, 'Height'] = get_first_valid_from_timeseries(
+                episode, 'Height')
 
-        episode = add_hours_elpased_to_events(episode, intime).set_index('HOURS').sort_index(axis=0)
-        # don't need to save Weight and Height in the episode data
-        # if stay_id in episodic_data.index:
-            # episodic_data.loc[stay_id, 'Weight'] = get_first_valid_from_timeseries(episode, 'Weight')
-            # episodic_data.loc[stay_id, 'Height'] = get_first_valid_from_timeseries(episode, 'Height')
         episodic_data.loc[episodic_data.index == stay_id].to_csv(os.path.join(args.subjects_root_path, subject_dir,
                                                                               'episode{}.csv'.format(i+1)),
                                                                  index_label='Icustay')
         columns = list(episode.columns)
-        columns_sorted = sorted(columns, key=(lambda x: "" if x == "Hours" else x))
+        columns_sorted = sorted(columns, key=(
+            lambda x: "" if x == "Hours" else x))
         episode = episode[columns_sorted]
         episode.to_csv(os.path.join(args.subjects_root_path, subject_dir, 'episode{}_timeseries.csv'.format(i+1)),
                        index_label='Hours')

@@ -1,4 +1,7 @@
+from __future__ import absolute_import
 from tqdm import tqdm
+from __future__ import print_function
+
 import os
 import argparse
 import pandas as pd
@@ -63,16 +66,20 @@ def process_partition(args, definitions, code_to_group, id_to_group, group_to_id
                                            dtype={"icd_code": str})
                 diagnoses_df = diagnoses_df[diagnoses_df.stay_id == icustay]
                 for index, row in diagnoses_df.iterrows():
-                    if row['use_in_benchmark']:
+                    if row['USE_IN_BENCHMARK']:
                         code = row['icd_code']
-                        group = code_to_group[code]
-                        group_id = group_to_id[group]
-                        cur_labels[group_id] = 1
-
+                        if code in code_to_group:
+                            group = code_to_group[code]
+                            group_id = group_to_id[group]
+                            cur_labels[group_id] = 1
+                        else:
+                            print(f'{code} code not found')
+                # import pdb; pdb.set_trace()
                 cur_labels = [x for (i, x) in enumerate(cur_labels)
                               if definitions[id_to_group[i]]['use_in_benchmark']]
 
-                xty_triples.append((output_ts_filename, los, cur_labels))
+                xty_triples.append(
+                    (output_ts_filename, los, icustay, cur_labels))
 
     print("Number of created samples:", len(xty_triples))
     if partition == "train":
@@ -83,12 +90,13 @@ def process_partition(args, definitions, code_to_group, id_to_group, group_to_id
     codes_in_benchmark = [x for x in id_to_group
                           if definitions[x]['use_in_benchmark']]
 
-    listfile_header = "stay,period_length," + ",".join(codes_in_benchmark)
+    listfile_header = "stay,period_length,stay_id," + \
+        ",".join(codes_in_benchmark)
     with open(os.path.join(output_dir, "listfile.csv"), "w") as listfile:
         listfile.write(listfile_header + "\n")
-        for (x, t, y) in xty_triples:
+        for (x, t, stay_id, y) in xty_triples:
             labels = ','.join(map(str, y))
-            listfile.write('{},{:.6f},{}\n'.format(x, t, labels))
+            listfile.write('{},{:.6f},{},{}\n'.format(x, t, stay_id, labels))
 
 
 def main():
@@ -100,22 +108,27 @@ def main():
                         help="Directory where the created data should be stored.")
     parser.add_argument('--phenotype_definitions', '-p', type=str,
                         default=os.path.join(os.path.dirname(
-                            __file__), '../resources/hcup_ccs_2015_definitions.yaml'),
+                            __file__), '../resources/icd_9_10_definitions_2.yaml'),
                         help='YAML file with phenotype definitions.')
     args, _ = parser.parse_known_args()
 
     with open(args.phenotype_definitions) as definitions_file:
-        definitions = yaml.safe_load(definitions_file)
+        definitions = yaml.load(definitions_file)
 
     code_to_group = {}
+
     for group in definitions:
         codes = definitions[group]['codes']
         for code in codes:
             if code not in code_to_group:
                 code_to_group[code] = group
             else:
+                print(f'code, {code}')
                 assert code_to_group[code] == group
 
+    # import pdb;pdb.set_trace()
+    # ['Diabetes mellitus with complication', ]
+    # 'ICD-10-CM CODE' 'Default CCSR CATEGORY DESCRIPTION IP'
     id_to_group = sorted(definitions.keys())
     group_to_id = dict((x, i) for (i, x) in enumerate(id_to_group))
 

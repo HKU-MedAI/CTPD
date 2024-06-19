@@ -3,7 +3,7 @@ import os
 import json
 import random
 
-from cmehr.dataset.mimic3.mimic3models.feature_extractor import extract_features
+from .feature_extractor import extract_features
 
 
 def convert_to_dict(data, header, channel_info):

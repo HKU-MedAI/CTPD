@@ -1,43 +1,21 @@
 import numpy as np
 import re
 
-import pandas as pd
 from pandas import DataFrame, Series
-import json
 
-from cmehr.preprocess.mimic3.mimic3benchmark.util import dataframe_from_csv
+from .util import dataframe_from_csv
 
 ###############################
 # Non-time series preprocessing
 ###############################
 
-# g_map = {'F': 1, 'M': 2, 'OTHER': 3, '': 0}
-g_map = {'F': 1, 'M': 2, 'OTHER': -1, '': 0}
+g_map = {'F': 1, 'M': 2, 'OTHER': 3, '': 0}
 
 
 def transform_gender(gender_series):
     global g_map
     return {'Gender': gender_series.fillna('').apply(lambda s: g_map[s] if s in g_map else g_map['OTHER'])}
 
-# def transform_age(age_series):
-#     return {'Age': age_series.fillna(-1).apply(lambda a: 1 if a >= 75 else 0)}
-
-
-# e_map = {'ASIAN': 1,
-#          'BLACK': 2,
-#          'CARIBBEAN ISLAND': 2,
-#          'HISPANIC': 3,
-#          'SOUTH AMERICAN': 3,
-#          'WHITE': 4,
-#          'MIDDLE EASTERN': 4,
-#          'PORTUGUESE': 4,
-#          'AMERICAN INDIAN': 0,
-#          'NATIVE HAWAIIAN': 0,
-#          'UNABLE TO OBTAIN': 0,
-#          'PATIENT DECLINED TO ANSWER': 0,
-#          'UNKNOWN': 0,
-#          'OTHER': 0,
-#          '': 0}
 
 e_map = {'ASIAN': 1,
          'BLACK': 2,
@@ -47,15 +25,13 @@ e_map = {'ASIAN': 1,
          'WHITE': 4,
          'MIDDLE EASTERN': 4,
          'PORTUGUESE': 4,
-         'AMERICAN INDIAN': 5,
-         'NATIVE HAWAIIAN': 5,
-         'MULTIPLE RACE': 5,
-         'MULTI RACE ETHNICITY': 5,
+         'AMERICAN INDIAN': 0,
+         'NATIVE HAWAIIAN': 0,
          'UNABLE TO OBTAIN': 0,
          'PATIENT DECLINED TO ANSWER': 0,
          'UNKNOWN': 0,
-         '': 0,
-         'OTHER': -1}
+         'OTHER': 0,
+         '': 0}
 
 
 def transform_ethnicity(ethnicity_series):
@@ -67,46 +43,17 @@ def transform_ethnicity(ethnicity_series):
     ethnicity_series = ethnicity_series.apply(aggregate_ethnicity)
     return {'Ethnicity': ethnicity_series.fillna('').apply(lambda s: e_map[s] if s in e_map else e_map['OTHER'])}
 
-i_map = {'Medicare': 1,
-         'Medicaid': 2,
-         'Government': 3,
-         'Self Pay': 4,
-         'Private': 5,
-         '': 0,
-         'Other': -1}
-
-def trabsferm_insurance(insurance_series):
-    global i_map
-    return {'Insurance': insurance_series.fillna('').apply(lambda s: i_map[s] if s in i_map else i_map['OTHER'])}
-
-m_map = {'MARRIED': 1,
-         'SINGLE': 2,
-         'WIDOWED': 3,
-         'DIVORCED': 4,
-         'SEPARATED': 5,
-         'LIFE PARTNER': 6,
-         'UNKNOWN (DEFAULT)': 0,
-         '': 0,
-         'OTHER': -1}
-def transform_marital_status(marital_status_series):
-    global m_map
-    return {'Marital_Status': marital_status_series.fillna('').apply(lambda s: m_map[s] if s in m_map else m_map['OTHER'])}
-
 
 def assemble_episodic_data(stays, diagnoses):
-    data = {'Icustay': stays.ICUSTAY_ID, 'Length of Stay': stays.LOS, 'Age': stays.AGE,
-            # 'Mortality': stays.MORTALITY, 'Readmission_30d': stays.READMISSION_30D}
+    data = {'Icustay': stays.ICUSTAY_ID, 'Age': stays.AGE, 'Length of Stay': stays.LOS,
             'Mortality': stays.MORTALITY}
-    # data.update(transform_age(stays.AGE))
     data.update(transform_gender(stays.GENDER))
     data.update(transform_ethnicity(stays.ETHNICITY))
-    data.update(trabsferm_insurance(stays.INSURANCE))
-    data.update(transform_marital_status(stays.MARITAL_STATUS))
-    # data['Height'] = np.nan
-    # data['Weight'] = np.nan
+    data['Height'] = np.nan
+    data['Weight'] = np.nan
     data = DataFrame(data).set_index('Icustay')
-    # data = data[['Ethnicity', 'Gender', 'Age', 'Insurance', 'Marital_Status', 'Length of Stay', 'Mortality', 'Readmission_30d']]
-    data = data[['Ethnicity', 'Gender', 'Age', 'Insurance', 'Marital_Status', 'Length of Stay', 'Mortality']]
+    data = data[['Ethnicity', 'Gender', 'Age', 'Height',
+                 'Weight', 'Length of Stay', 'Mortality']]
     return data.merge(extract_diagnosis_labels(diagnoses), left_index=True, right_index=True)
 
 
@@ -128,7 +75,7 @@ def extract_diagnosis_labels(diagnoses):
     global diagnosis_labels
     diagnoses['VALUE'] = 1
     labels = diagnoses[['ICUSTAY_ID', 'ICD9_CODE', 'VALUE']].drop_duplicates()\
-                      .pivot(index='ICUSTAY_ID', columns='ICD9_CODE', values='VALUE').fillna(0).astype(int)
+        .pivot(index='ICUSTAY_ID', columns='ICD9_CODE', values='VALUE').fillna(0).astype(int)
     for l in diagnosis_labels:
         if l not in labels:
             labels[l] = 0
@@ -141,15 +88,19 @@ def add_hcup_ccs_2015_groups(diagnoses, definitions):
     for dx in definitions:
         for code in definitions[dx]['codes']:
             def_map[code] = (dx, definitions[dx]['use_in_benchmark'])
-    diagnoses['HCUP_CCS_2015'] = diagnoses.ICD9_CODE.apply(lambda c: def_map[c][0] if c in def_map else None)
-    diagnoses['USE_IN_BENCHMARK'] = diagnoses.ICD9_CODE.apply(lambda c: int(def_map[c][1]) if c in def_map else None)
+    diagnoses['HCUP_CCS_2015'] = diagnoses.ICD9_CODE.apply(
+        lambda c: def_map[c][0] if c in def_map else None)
+    diagnoses['USE_IN_BENCHMARK'] = diagnoses.ICD9_CODE.apply(
+        lambda c: int(def_map[c][1]) if c in def_map else None)
     return diagnoses
 
 
 def make_phenotype_label_matrix(phenotypes, stays=None):
-    phenotypes = phenotypes[['ICUSTAY_ID', 'HCUP_CCS_2015']].loc[phenotypes.USE_IN_BENCHMARK > 0].drop_duplicates()
+    phenotypes = phenotypes[['ICUSTAY_ID', 'HCUP_CCS_2015']
+                            ].loc[phenotypes.USE_IN_BENCHMARK > 0].drop_duplicates()
     phenotypes['VALUE'] = 1
-    phenotypes = phenotypes.pivot(index='ICUSTAY_ID', columns='HCUP_CCS_2015', values='VALUE')
+    phenotypes = phenotypes.pivot(
+        index='ICUSTAY_ID', columns='HCUP_CCS_2015', values='VALUE')
     if stays is not None:
         phenotypes = phenotypes.reindex(stays.ICUSTAY_ID.sort_values())
     return phenotypes.fillna(0).astype(int).sort_index(axis=0).sort_index(axis=1)
@@ -159,42 +110,15 @@ def make_phenotype_label_matrix(phenotypes, stays=None):
 # Time series preprocessing
 ###################################
 
-# def read_itemid_to_variable_map(fn, variable_column='LEVEL2'):
-#     var_map = dataframe_from_csv(fn, index_col=None).fillna('').astype(str)
-#     # var_map[variable_column] = var_map[variable_column].apply(lambda s: s.lower())
-#     var_map.COUNT = var_map.COUNT.astype(int)
-#     var_map = var_map[(var_map[variable_column] != '') & (var_map.COUNT > 0)]
-#     var_map = var_map[(var_map.STATUS == 'ready')]
-#     var_map.ITEMID = var_map.ITEMID.astype(int)
-#     var_map = var_map[[variable_column, 'ITEMID', 'MIMIC LABEL']].set_index('ITEMID')
-#     return var_map.rename({variable_column: 'VARIABLE', 'MIMIC LABEL': 'MIMIC_LABEL'}, axis=1)
-
-def read_itemid_to_variable_map(fn, pr_fn, variable_column='LEVEL2'):
+def read_itemid_to_variable_map(fn, variable_column='LEVEL2'):
     var_map = dataframe_from_csv(fn, index_col=None).fillna('').astype(str)
-    with open(pr_fn) as f:
-        cli_pres_map = json.load(f)
-    var_map["PREDICTOR"] = ""
-    for category in cli_pres_map.values():
-        for predictor_name, predictor in category.items():
-            if predictor["LEVEL2"] != "NOT-FOUND":
-                var_map.loc[var_map["LEVEL2"] == predictor["LEVEL2"], "PREDICTOR"] = predictor_name
-                # print(f"Index of predictor {predictor_name}: {var_map[var_map.PREDICTOR == predictor_name].index}")
-                continue
-            if predictor["LEVEL1"] != "NOT-FOUND":
-                var_map.loc[var_map["LEVEL1"] == predictor["LEVEL1"], "PREDICTOR"] = predictor_name
-                # print(f"Index of predictor {predictor_name}: {var_map[var_map.PREDICTOR == predictor_name].index}")
-                continue
-            var_map.loc[var_map["MIMIC LABEL"].isin(predictor["MIMIC LABEL"]), "PREDICTOR"] = predictor_name
-            # print(f"Index of predictor {predictor_name}: {var_map[var_map.PREDICTOR == predictor_name].index}")
-    # print("length of var_map.PREDICTOR: ", len(var_map.PREDICTOR.unique()))
-    var_map = var_map[var_map["PREDICTOR"] != ""]
-    var_map['COUNT'] = var_map['COUNT'].apply(lambda x: round(float(x)) if x else 0)
-    var_map_ex = var_map[(var_map.PREDICTOR == 'Arterial Base Excess') | (var_map.PREDICTOR == 'Phosphorus')]
-    var_map = var_map[(var_map.STATUS == 'ready') & (var_map.COUNT > 0)] 
-    var_map = pd.concat([var_map, var_map_ex], ignore_index=True)
-    # print("length of var_map.PREDICTOR: ", len(var_map.PREDICTOR.unique()))
-    var_map.ITEMID = var_map.ITEMID.astype(int)      
-    var_map = var_map[[variable_column, 'ITEMID', 'MIMIC LABEL', 'PREDICTOR']].set_index('ITEMID')
+    # var_map[variable_column] = var_map[variable_column].apply(lambda s: s.lower())
+    var_map.COUNT = var_map.COUNT.astype(int)
+    var_map = var_map[(var_map[variable_column] != '') & (var_map.COUNT > 0)]
+    var_map = var_map[(var_map.STATUS == 'ready')]
+    var_map.ITEMID = var_map.ITEMID.astype(int)
+    var_map = var_map[[variable_column, 'ITEMID',
+                       'MIMIC LABEL']].set_index('ITEMID')
     return var_map.rename({variable_column: 'VARIABLE', 'MIMIC LABEL': 'MIMIC_LABEL'}, axis=1)
 
 
@@ -203,7 +127,8 @@ def map_itemids_to_variables(events, var_map):
 
 
 def read_variable_ranges(fn, variable_column='LEVEL2'):
-    columns = [variable_column, 'OUTLIER LOW', 'VALID LOW', 'IMPUTE', 'VALID HIGH', 'OUTLIER HIGH']
+    columns = [variable_column, 'OUTLIER LOW', 'VALID LOW',
+               'IMPUTE', 'VALID HIGH', 'OUTLIER HIGH']
     to_rename = dict(zip(columns, [c.replace(' ', '_') for c in columns]))
     to_rename[variable_column] = 'VARIABLE'
     var_ranges = dataframe_from_csv(fn, index_col=None)
@@ -253,7 +178,8 @@ def clean_crr(df):
     df_value_str = df.VALUE.astype(str)
 
     v.loc[(df_value_str == 'Normal <3 secs') | (df_value_str == 'Brisk')] = 0
-    v.loc[(df_value_str == 'Abnormal >3 secs') | (df_value_str == 'Delayed')] = 1
+    v.loc[(df_value_str == 'Abnormal >3 secs')
+          | (df_value_str == 'Delayed')] = 1
     return v
 
 
@@ -275,8 +201,10 @@ def clean_fio2(df):
     ''' The two following lines implement the code that was used to create the benchmark dataset that the paper used.
     This works with both python 2 and python 3.
     '''
-    is_str = np.array(map(lambda x: type(x) == str, list(df.VALUE)), dtype=bool)
-    idx = df.VALUEUOM.fillna('').apply(lambda s: 'torr' not in s.lower()) & (is_str | (~is_str & (v > 1.0)))
+    is_str = np.array(map(lambda x: type(x) == str,
+                      list(df.VALUE)), dtype=bool)
+    idx = df.VALUEUOM.fillna('').apply(
+        lambda s: 'torr' not in s.lower()) & (is_str | (~is_str & (v > 1.0)))
 
     v.loc[idx] = v[idx] / 100.
     return v
@@ -285,7 +213,8 @@ def clean_fio2(df):
 # GLUCOSE, PH: sometimes have ERROR as value
 def clean_lab(df):
     v = df.VALUE.copy()
-    idx = v.apply(lambda s: type(s) is str and not re.match('^(\d+(\.\d*)?|\.\d+)$', s))
+    idx = v.apply(lambda s: type(s) is str and not re.match(
+        '^(\d+(\.\d*)?|\.\d+)$', s))
     v.loc[idx] = np.nan
     return v.astype(float)
 
@@ -294,7 +223,8 @@ def clean_lab(df):
 def clean_o2sat(df):
     # change "ERROR" to NaN
     v = df.VALUE.copy()
-    idx = v.apply(lambda s: type(s) is str and not re.match('^(\d+(\.\d*)?|\.\d+)$', s))
+    idx = v.apply(lambda s: type(s) is str and not re.match(
+        '^(\d+(\.\d*)?|\.\d+)$', s))
     v.loc[idx] = np.nan
 
     v = v.astype(float)
@@ -306,7 +236,8 @@ def clean_o2sat(df):
 # Temperature: map Farenheit to Celsius, some ambiguous 50<x<80
 def clean_temperature(df):
     v = df.VALUE.astype(float).copy()
-    idx = df.VALUEUOM.fillna('').apply(lambda s: 'F' in s.lower()) | df.MIMIC_LABEL.apply(lambda s: 'F' in s.lower()) | (v >= 79)
+    idx = df.VALUEUOM.fillna('').apply(lambda s: 'F' in s.lower(
+    )) | df.MIMIC_LABEL.apply(lambda s: 'F' in s.lower()) | (v >= 79)
     v.loc[idx] = (v[idx] - 32) * 5. / 9
     return v
 
@@ -316,10 +247,12 @@ def clean_temperature(df):
 def clean_weight(df):
     v = df.VALUE.astype(float).copy()
     # ounces
-    idx = df.VALUEUOM.fillna('').apply(lambda s: 'oz' in s.lower()) | df.MIMIC_LABEL.apply(lambda s: 'oz' in s.lower())
+    idx = df.VALUEUOM.fillna('').apply(lambda s: 'oz' in s.lower(
+    )) | df.MIMIC_LABEL.apply(lambda s: 'oz' in s.lower())
     v.loc[idx] = v[idx] / 16.
     # pounds
-    idx = idx | df.VALUEUOM.fillna('').apply(lambda s: 'lb' in s.lower()) | df.MIMIC_LABEL.apply(lambda s: 'lb' in s.lower())
+    idx = idx | df.VALUEUOM.fillna('').apply(
+        lambda s: 'lb' in s.lower()) | df.MIMIC_LABEL.apply(lambda s: 'lb' in s.lower())
     v.loc[idx] = v[idx] * 0.453592
     return v
 
@@ -328,9 +261,11 @@ def clean_weight(df):
 # Children are tough for height, weight
 def clean_height(df):
     v = df.VALUE.astype(float).copy()
-    idx = df.VALUEUOM.fillna('').apply(lambda s: 'in' in s.lower()) | df.MIMIC_LABEL.apply(lambda s: 'in' in s.lower())
+    idx = df.VALUEUOM.fillna('').apply(lambda s: 'in' in s.lower(
+    )) | df.MIMIC_LABEL.apply(lambda s: 'in' in s.lower())
     v.loc[idx] = np.round(v[idx] * 2.54)
     return v
+
 
 # ETCO2: haven't found yet
 # Urine output: ambiguous units (raw ccs, ccs/kg/hr, 24-hr, etc.)
@@ -343,40 +278,23 @@ def clean_height(df):
 # Respiratory rate
 # Mean blood pressure
 clean_fns = {
-    # 'Capillary refill rate': clean_crr,
-    # 'Diastolic blood pressure': clean_dbp,
-    # 'Systolic blood pressure': clean_sbp,
-    # 'Fraction inspired oxygen': clean_fio2,
-    # 'Glucose': clean_lab,
-    # 'pH': clean_lab,
-    # 'Temperature': clean_temperature,
-    # 'Weight': clean_weight,
-    # 'Height': clean_height,
-    # 'Oxygen saturation': clean_o2sat,
-    'Diastolic Blood Pressure': clean_dbp,
-    'Systolic Blood Pressure': clean_sbp,
-    'Fingerstick Glucose': clean_lab,
-    'Serum Glucose': clean_lab,
-    'Arterial pH': clean_lab,
-    'Body Temperature': clean_temperature,
-    'Oxygen Saturation': clean_o2sat,
-    'Serum Hematocrit': clean_o2sat,
-    'Creatinine': clean_lab,
-    'Arterial Base Excess': clean_lab,
-    'Magnesium': clean_lab,
-    'Ionized Calcium': clean_lab,
-    'White Blood Cell Count': clean_lab,
-    'Hemoglobin': clean_lab,
-    'Platelet Count': clean_lab,
-    'Blood Urea Nitrogen': clean_lab
+    'Capillary refill rate': clean_crr,
+    'Diastolic blood pressure': clean_dbp,
+    'Systolic blood pressure': clean_sbp,
+    'Fraction inspired oxygen': clean_fio2,
+    'Oxygen saturation': clean_o2sat,
+    'Glucose': clean_lab,
+    'pH': clean_lab,
+    'Temperature': clean_temperature,
+    'Weight': clean_weight,
+    'Height': clean_height
 }
 
 
 def clean_events(events):
     global clean_fns
     for var_name, clean_fn in clean_fns.items():
-        # idx = (events.VARIABLE == var_name)
-        idx = (events.PREDICTOR == var_name)
+        idx = (events.VARIABLE == var_name)
         try:
             events.loc[idx, 'VALUE'] = clean_fn(events[idx])
         except Exception as e:

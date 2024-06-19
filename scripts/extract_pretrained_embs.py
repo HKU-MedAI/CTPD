@@ -15,8 +15,8 @@ from cmehr.utils.evaluation_utils import eval_svm, eval_linear
 import ipdb
 
 '''
-CUDA_VISIBLE_DEVICES=1 python extract_pretrained_embs.py \
-    --ckpt_path /home/fywang/Documents/EHR_codebase/MMMSPG/log/ckpts/mimic4_pretrain_2024-06-06_22-58-17/epoch=96-step=20370.ckpt
+CUDA_VISIBLE_DEVICES=0 python extract_pretrained_embs.py \
+    --ckpt_path /home/fywang/Documents/EHR_codebase/MMMSPG/log/ckpts/mimic4_pretrain_2024-06-18_23-26-33/epoch=84-step=17510.ckpt
 '''
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -100,9 +100,6 @@ def extract_downstream_embs(model: MIMIC4PretrainModule, dataloader: DataLoader,
 def cli_main():
     seed_everything(args.seed)
 
-    # This is fixed for MIMIC4
-    args.orig_d_ts = 25
-    args.orig_reg_d_ts = 50
     # define datamodule
     if args.first_nrows == -1:
         args.first_nrows = None

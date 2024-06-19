@@ -181,15 +181,14 @@ class MIMIC4PretrainModule(LightningModule):
             proj_ts_aug_1, proj_ts_aug_2
         )
 
+        del proj_ts_aug_1, proj_ts_aug_2
+        proj_ts_embs = self.forward_ts_mtand(ts, ts_mask, ts_tt)
         # find corresponding CXR at each time point
         cxr_time_indices = torch.clamp(self.time_query_img // (1 / self.tt_max), 0, self.tt_max - 1)
-        ts_embs_aug_1 = proj_ts_aug_1[torch.arange(batch_size)[:, None], cxr_time_indices.long()]
-        ts_embs_aug_2 = proj_ts_aug_2[torch.arange(batch_size)[:, None], cxr_time_indices.long()]
-
-        ts_embs_aug_1 = rearrange(ts_embs_aug_1, "b n d -> (b n) d")
-        ts_embs_aug_2 = rearrange(ts_embs_aug_2, "b n d -> (b n) d")
+        ts_embs = proj_ts_embs[torch.arange(batch_size)[:, None], cxr_time_indices.long()]
+        ts_embs = rearrange(ts_embs, "b n d -> (b n) d")
         proj_img_embs = rearrange(proj_img_embs, "b n d -> (b n) d")
-        cm_loss = (self.infonce_loss(ts_embs_aug_1, proj_img_embs) + self.infonce_loss(ts_embs_aug_2, proj_img_embs)) / 2
+        cm_loss = self.infonce_loss(ts_embs, proj_img_embs)
         loss_dict = {
             "loss": ts2vec_loss + self.cm_loss_weight * cm_loss,
             "ts2vec_loss": ts2vec_loss,

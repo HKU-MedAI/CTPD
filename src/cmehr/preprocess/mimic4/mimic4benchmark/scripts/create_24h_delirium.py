@@ -41,21 +41,21 @@ def process_partition(args, delirium_codes,
 
                 if los < n_hours - eps:
                     continue
-                insurance = int(label_df.iloc[0]['Insurance'])
-                # in mimiciv, others is a category in insurance and race
-                if insurance == 0:
-                    continue
-                race = int(label_df.iloc[0]['Ethnicity'])
-                if race == 0:
-                    continue
-                gender = int(label_df.iloc[0]['Gender'])
-                if gender <= 0:
-                    continue
-                age = 1 if int(label_df.iloc[0]['Age']) >= 75 else 0
+                # insurance = int(label_df.iloc[0]['Insurance'])
+                # # in mimiciv, others is a category in insurance and race
+                # if insurance == 0:
+                #     continue
+                # race = int(label_df.iloc[0]['Ethnicity'])
+                # if race == 0:
+                #     continue
+                # gender = int(label_df.iloc[0]['Gender'])
+                # if gender <= 0:
+                #     continue
+                # age = 1 if int(label_df.iloc[0]['Age']) >= 75 else 0
 
-                marital_status = int(label_df.iloc[0]['Marital_Status'])
-                if marital_status <= 0:
-                    continue
+                # marital_status = int(label_df.iloc[0]['Marital_Status'])
+                # if marital_status <= 0:
+                #     continue
 
                 ts_lines = tsfile.readlines()
                 header = ts_lines[0]
@@ -90,7 +90,7 @@ def process_partition(args, delirium_codes,
                     if code in delirium_codes:
                         delirium_label = 1
                         pos += 1
-                xty_triples.append((output_ts_filename, icustay, n_hours, delirium_label, insurance, race, gender, age, marital_status))
+                xty_triples.append((output_ts_filename, icustay, n_hours, delirium_label))
 
     print("Number of created samples:", len(xty_triples))
     print("Number of positive samples:", pos)
@@ -101,16 +101,12 @@ def process_partition(args, delirium_codes,
     if partition == "train":
         xty_triples = sorted(xty_triples)
     with open(os.path.join(output_dir, "listfile.csv"), "w") as listfile:
-        listfile.write('stay,stay_id,period_length,y_true,insurance,race,gender,age,marital_status\n')
-        for (x, s, t, y, i, r, g, a, m) in xty_triples:
-            listfile.write('{},{},{:.6f},{:d},{:d},{:d},{:d},{:d},{:d}\n'.format(x, s, t, y, i, r, g, a, m))
+        listfile.write('stay,stay_id,period_length,y_true\n')
+        for (x, s, t, y) in xty_triples:
+            listfile.write('{},{},{:.6f},{:d}\n'.format(x, s, t, y))
 
 
 def main():
-    '''
-    python -m mimic3benchmark.scripts.create_24h_phenotyping /home/**/Documents/CM-EHR/data/mimiciii_benchmark /home/**/Documents/CM-EHR/data/mimiciii_benchmark/phenotyping_24h
-    python -m mimic3models.split_train_val /home/**/Documents/CM-EHR/data/mimiciii_benchmark/phenotyping_24h 
-    '''
     parser = argparse.ArgumentParser(
         description="Create data for phenotype classification task.")
     parser.add_argument('--root_path', type=str,

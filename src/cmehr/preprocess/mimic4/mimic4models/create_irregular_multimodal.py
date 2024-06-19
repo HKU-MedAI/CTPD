@@ -7,7 +7,6 @@ import ipdb
 from tqdm import tqdm
 import numpy as np
 import statistics as stat
-from typing import List, Dict
 
 from cmehr.preprocess.mimic4.mimic4models.readers import MultimodalReader, Reader
 import cmehr.preprocess.mimic4.mimic4models.common_utils as common_utils
@@ -16,7 +15,8 @@ from cmehr.paths import *
 
 '''
 TODO: maybe we need to merge these preprocessing code into cmehr repo. To make sure the consistent dataset preprocessing procedures.
-python -m mimic4models.create_irregular_multimodal --dataset_path /disk1/fywang/EHR_dataset/mimiciv_fairness_benchmark/cxr
+python -m mimic4models.create_irregular_multimodal --dataset_path /disk1/fywang/EHR_dataset/mimiciv_benchmark/cxr \
+    --cxr_path /disk1/fywang/EHR_dataset/mimiciv_benchmark/cxr/admission_w_cxr.csv
 '''
 parser = argparse.ArgumentParser(
     description='Create irregular time series from MIMIC 4')
@@ -27,6 +27,8 @@ parser.add_argument('--timestep', type=float, default=1.0,
 parser.add_argument('--imputation', type=str, default='previous')
 parser.add_argument('--small_part', dest='small_part', action='store_true')
 parser.add_argument('--dataset_path', type=str, default="mimic4")
+parser.add_argument('--cxr_path', type=str, 
+                    default="/home/fywang/Documents/EHR_codebase/MMMSPG/data/mimiciv_fairness_benchmark/cxr/admission_w_cxr.csv")
 args = parser.parse_args()
 
 
@@ -35,6 +37,8 @@ args.dataset_path = Path(args.dataset_path)
 output_dir = args.output_dir / "self_supervised_multimodal"
 os.makedirs(output_dir, exist_ok=True)
 print(args)
+channel_path = str(ROOT_PATH / "src/cmehr/preprocess/mimic4/mimic4models/resources/channel_info.json")
+config_path = str(ROOT_PATH / "src/cmehr/preprocess/mimic4/mimic4models/resources/discretizer_config.json")
 
 
 class Discretizer_multi(Discretizer):
@@ -42,11 +46,10 @@ class Discretizer_multi(Discretizer):
     The same discretizer without one-hot encoding
     '''
 
-    def __init__(self, timestep=0.8, store_masks=True, impute_strategy='zero', start_time='zero',
-                 config_path=str(
-                     ROOT_PATH / "src/cmehr/preprocess/mimic4/mimic4models/resources/discretizer_config.json"),
-                 channel_path=str(
-                     ROOT_PATH / "src/cmehr/preprocess/mimic4/mimic4models/resources/channel_info.json")
+    def __init__(self, timestep=0.8, store_masks=True, 
+                 impute_strategy='zero', start_time='zero',
+                 config_path=config_path,
+                 channel_path=channel_path
                  ):
         super(Discretizer_multi, self).__init__(
             timestep, store_masks, impute_strategy, start_time, config_path)
@@ -209,12 +212,8 @@ def save_data(reader: Reader,
     return
 
 
-def extract_irregular(dataPath_in, dataPath_out):
+def extract_irregular(dataPath_in, dataPath_out, cxr_df):
     """ Extract irregular time series """
-    config_path=str(
-        ROOT_PATH / "src/cmehr/preprocess/mimic4/mimic4models/resources/discretizer_config.json")
-    channel_path=str(
-        ROOT_PATH / "src/cmehr/preprocess/mimic4/mimic4models/resources/channel_info.json")
 
     # Opening JSON file
     channel_info_file = open(channel_path)
@@ -263,7 +262,12 @@ def extract_irregular(dataPath_in, dataPath_out):
         # reg_data: reg_data | mask
         data_i['reg_ts'] = reg_data[p_id]
         data_i['name'] = names[p_id]
-        data_i['label'] = dicom_ids[p_id]
+        sub_df = cxr_df[cxr_df['dicom_id'].isin(dicom_ids[p_id])]
+        sub_df = sub_df.sort_values(by='StudyDateTime')
+        data_i['cxr_path'] = sub_df["path"].tolist()
+        # compute the time difference between the study time and the intime
+        time_diff = (pd.to_datetime(sub_df["StudyDateTime"]) - pd.to_datetime(sub_df["intime"])).values / np.timedelta64(1, 'h')
+        data_i['cxr_time'] = time_diff.tolist()
         data_i['ts_tt'] = tt
         data_i['irg_ts'] = np.array(features_list)
         data_i['irg_ts_mask'] = np.array(features_mask_list)
@@ -360,8 +364,6 @@ def diff_float(time1, time2):
 
 
 def create_irregular_ts():
-    # TODO: change this code later ...
-    config_path = str(ROOT_PATH / "src/cmehr/preprocess/mimic4/mimic4models/resources/discretizer_config.json")
     with open(config_path) as f:
         config = json.load(f)
     variables = config['id_to_channel']
@@ -406,10 +408,12 @@ def create_irregular_ts():
               args.small_part, mode='test')
 
     print("Step 2: Load irregular time series data")
+    cxr_df = pd.read_csv(args.cxr_path)
     for mode in ['train', 'val', 'test']:
         extract_irregular(
             os.path.join(output_dir, f"ts_{mode}.pkl"),
-            os.path.join(output_dir, f"ts_{mode}.pkl")
+            os.path.join(output_dir, f"ts_{mode}.pkl"),
+            cxr_df
         )
 
     # calculate mean,std of ts

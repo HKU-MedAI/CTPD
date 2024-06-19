@@ -50,8 +50,4 @@ def cluster(args):
 
 
 if __name__ == "__main__":
-    # This is fixed for MIMIC4
-    args.orig_d_ts = 25
-    args.orig_reg_d_ts = 50
-    args.period_length = 100
     cluster(args)

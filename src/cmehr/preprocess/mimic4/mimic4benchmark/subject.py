@@ -1,28 +1,23 @@
+from __future__ import absolute_import
+from __future__ import print_function
+
 import numpy as np
 import os
 import pandas as pd
 
-from cmehr.preprocess.mimic4.mimic4benchmark.util import dataframe_from_csv
+from mimic4benchmark.util import dataframe_from_csv
 
 
 def read_stays(subject_path):
+    # import pdb;pdb.set_trace()
     stays = dataframe_from_csv(os.path.join(
         subject_path, 'stays.csv'), index_col=None)
     stays.intime = pd.to_datetime(stays.intime)
     stays.outtime = pd.to_datetime(stays.outtime)
-    # stays.DOB = pd.to_datetime(stays.DOB)
+    # stays.dob = pd.to_datetime(stays.dob) missing in mimic-iv
     stays.dod = pd.to_datetime(stays.dod)
     stays.deathtime = pd.to_datetime(stays.deathtime)
     stays.sort_values(by=['intime', 'outtime'], inplace=True)
-    # stays['readmission_30d'] = 0
-    # for idx, row in stays.iterrows():
-    #     if idx == 0:
-    #         continue
-    #     prev_row = stays.iloc[idx-1]
-    #     prev_outtime = pd.to_datetime(prev_row.outtime)
-    #     cur_intime = pd.to_datetime(row.intime)
-    #     if (cur_intime - prev_outtime).days < 30:
-    #         stays.loc[idx-1, 'readmission_30d'] = 1
     return stays
 
 
@@ -38,8 +33,8 @@ def read_events(subject_path, remove_null=True):
     events.charttime = pd.to_datetime(events.charttime)
     events.hadm_id = events.hadm_id.fillna(value=-1).astype(int)
     events.stay_id = events.stay_id.fillna(value=-1).astype(int)
-    events.valueuom = events.valueuom.fillna('').astype(str)
-    # events.sort_values(by=['charttime', 'itemid', 'stay_id'], inplace=True)
+    events.valuenum = events.valuenum.fillna('').astype(str)
+    # events.sort_values(by=['charttime', 'ITEMID', 'stay_id'], inplace=True)
     return events
 
 
@@ -55,14 +50,14 @@ def get_events_for_stay(events, icustayid, intime=None, outtime=None):
 
 def add_hours_elpased_to_events(events, dt, remove_charttime=True):
     events = events.copy()
-    events['hours'] = (events.charttime -
+    events['HOURS'] = (events.charttime -
                        dt).apply(lambda s: s / np.timedelta64(1, 's')) / 60./60
     if remove_charttime:
         del events['charttime']
     return events
 
 
-def convert_events_to_timeseries(events, variable_column='predictor', variables=[]):
+def convert_events_to_timeseries(events, variable_column='variable', variables=[]):
     metadata = events[['charttime', 'stay_id']].sort_values(by=['charttime', 'stay_id'])\
         .drop_duplicates(keep='first').set_index('charttime')
     timeseries = events[['charttime', variable_column, 'value']]\

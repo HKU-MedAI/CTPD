@@ -18,13 +18,14 @@ from cmehr.models.mimic4 import (
     CAMELOTModule, TSLANETModule)
 from cmehr.paths import *
 
+
 torch.backends.cudnn.deterministic = True  # type: ignore
 torch.backends.cudnn.benchmark = True  # type: ignore
 torch.set_float32_matmul_precision("high")
 
+
 '''
 CUDA_VISIBLE_DEVICES=1 python train_mimic4.py --modeltype TS --task ihm --model_name mtand
-CUDA_VISIBLE_DEVICES=1 python train_mimic4.py --modeltype TS --task pheno --model_name camelot
 '''
 parser = ArgumentParser(description="PyTorch Lightning EHR Model")
 parser.add_argument("--task", type=str, default="pheno",
@@ -66,8 +67,10 @@ def cli_main():
         seed_everything(seed)
 
         # This is fixed for MIMIC4
-        args.orig_d_ts = 25
-        args.orig_reg_d_ts = 50
+        # args.orig_d_ts = 25
+        # args.orig_reg_d_ts = 50
+        args.orig_d_ts = 15
+        args.orig_reg_d_ts = 30
 
         # define datamodule
         if args.first_nrows == -1:

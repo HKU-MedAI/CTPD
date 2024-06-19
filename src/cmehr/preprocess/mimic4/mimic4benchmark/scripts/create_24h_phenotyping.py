@@ -1,3 +1,6 @@
+from __future__ import absolute_import
+from __future__ import print_function
+
 from tqdm import tqdm
 import os
 import argparse
@@ -39,21 +42,6 @@ def process_partition(args, definitions, code_to_group, id_to_group, group_to_id
 
                 if los < n_hours - eps:
                     continue
-                insurance = int(label_df.iloc[0]['Insurance'])
-                # in mimiciv, others is a category in insurance and race
-                if insurance == 0:
-                    continue
-                race = int(label_df.iloc[0]['Ethnicity'])
-                if race == 0:
-                    continue
-                gender = int(label_df.iloc[0]['Gender'])
-                if gender <= 0:
-                    continue
-                age = 1 if int(label_df.iloc[0]['Age']) >= 75 else 0
-
-                marital_status = int(label_df.iloc[0]['Marital_Status'])
-                if marital_status <= 0:
-                    continue
 
                 ts_lines = tsfile.readlines()
                 header = ts_lines[0]
@@ -62,6 +50,7 @@ def process_partition(args, definitions, code_to_group, id_to_group, group_to_id
 
                 # ts_lines = [line for (line, t) in zip(ts_lines, event_times)
                 #             if -eps < t < los + eps]
+
                 ts_lines = [line for (line, t) in zip(ts_lines, event_times)
                             if -eps < t < n_hours + eps]
 
@@ -89,15 +78,16 @@ def process_partition(args, definitions, code_to_group, id_to_group, group_to_id
                             group = code_to_group[code]
                             group_id = group_to_id[group]
                             cur_labels[group_id] = 1
-                        # else:
-                        #     import ipdb
-                        #     ipdb.set_trace()
-                        #     print(f'{code} code not found')  
-
+                        else:
+                            print(f'{code} code not found')
+                # import pdb; pdb.set_trace()
                 cur_labels = [x for (i, x) in enumerate(cur_labels)
                               if definitions[id_to_group[i]]['use_in_benchmark']]
 
-                xty_triples.append((output_ts_filename, icustay, n_hours, cur_labels, insurance, race, gender, age, marital_status))
+                # xty_triples.append(
+                #     (output_ts_filename, los, icustay, cur_labels))
+                xty_triples.append(
+                    (output_ts_filename, n_hours, icustay, cur_labels))
 
     print("Number of created samples:", len(xty_triples))
     if partition == "train":
@@ -108,44 +98,45 @@ def process_partition(args, definitions, code_to_group, id_to_group, group_to_id
     codes_in_benchmark = [x for x in id_to_group
                           if definitions[x]['use_in_benchmark']]
 
-    listfile_header = "stay,stay_id,period_length," + ",".join(codes_in_benchmark)
+    listfile_header = "stay,period_length,stay_id," + \
+        ",".join(codes_in_benchmark)
     with open(os.path.join(output_dir, "listfile.csv"), "w") as listfile:
-        listfile.write(listfile_header + ",insurance,race,gender,age,marital_status\n")
-        for (x, s, t, y, i, r, g, a, m) in xty_triples:
+        listfile.write(listfile_header + "\n")
+        for (x, t, stay_id, y) in xty_triples:
             labels = ','.join(map(str, y))
-            listfile.write('{},{},{:.6f},{},{:d},{:d},{:d},{:d},{:d}\n'.format(x, s, t, labels, i, r, g, a, m))
+            listfile.write('{},{:.6f},{},{}\n'.format(x, t, stay_id, labels))
 
 
 def main():
-    '''
-    python -m mimic3benchmark.scripts.create_24h_phenotyping /home/**/Documents/CM-EHR/data/mimiciii_benchmark /home/**/Documents/CM-EHR/data/mimiciii_benchmark/phenotyping_24h
-    python -m mimic3models.split_train_val /home/**/Documents/CM-EHR/data/mimiciii_benchmark/phenotyping_24h 
-    '''
     parser = argparse.ArgumentParser(
         description="Create data for phenotype classification task.")
-    parser.add_argument('--root_path', type=str,
-                        default=os.path.join(os.path.dirname(__file__), '../../data/root/'),
+    parser.add_argument('root_path', type=str,
                         help="Path to root folder containing train and test sets.")
-    parser.add_argument('--output_path', type=str,
-                        default=os.path.join(os.path.dirname(__file__), '../../data/pheno/'),
+    parser.add_argument('output_path', type=str,
                         help="Directory where the created data should be stored.")
     parser.add_argument('--phenotype_definitions', '-p', type=str,
-                        default=os.path.join(os.path.dirname(__file__), '../resources/icd_9_10_definitions_2.yaml'),
+                        default=os.path.join(os.path.dirname(
+                            __file__), '../resources/icd_9_10_definitions_2.yaml'),
                         help='YAML file with phenotype definitions.')
     args, _ = parser.parse_known_args()
 
     with open(args.phenotype_definitions) as definitions_file:
-        definitions = yaml.safe_load(definitions_file)
+        definitions = yaml.load(definitions_file, Loader=yaml.FullLoader)
 
     code_to_group = {}
+
     for group in definitions:
         codes = definitions[group]['codes']
         for code in codes:
             if code not in code_to_group:
                 code_to_group[code] = group
             else:
+                print(f'code, {code}')
                 assert code_to_group[code] == group
 
+    # import pdb;pdb.set_trace()
+    # ['Diabetes mellitus with complication', ]
+    # 'ICD-10-CM CODE' 'Default CCSR CATEGORY DESCRIPTION IP'
     id_to_group = sorted(definitions.keys())
     group_to_id = dict((x, i) for (i, x) in enumerate(id_to_group))
 

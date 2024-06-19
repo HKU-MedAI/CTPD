@@ -109,7 +109,7 @@ class InHospitalMortalityReader(Reader):
         """
         Reader.__init__(self, dataset_dir, listfile)
         self._data = [line.split(',') for line in self._data]
-        self._data = [(x, int(s), int(y), int(i), int(r), int(g), int(a), int(m)) for (x, s, y, i, r, g, a, m) in self._data]
+        self._data = [(x, int(y)) for (x, _, _, y) in self._data]
         self._period_length = period_length
         self.columns = columns
 
@@ -152,27 +152,15 @@ class InHospitalMortalityReader(Reader):
 
         name = self._data[index][0]
         t = self._period_length
-        stay_id = self._data[index][1]
-        y = self._data[index][2]
-        insurance = self._data[index][3]
-        race = self._data[index][4]
-        gender = self._data[index][5]
-        age = self._data[index][6]
-        marital_status = self._data[index][7]
-
+        y = self._data[index][1]
         (X, header) = self._read_timeseries(name)
 
         return {"X": X,
-                "stay_id": stay_id,
                 "t": t,
                 "y": y,
-                "insurance": insurance,
-                "race": race,
-                "gender": gender,
-                "age": age,
-                "marital_status": marital_status,
                 "header": header,
                 "name": name}
+
 
 class ReadmissionReader(Reader):
     def __init__(self, dataset_dir, listfile=None, period_length=48.0, columns=[]):
@@ -185,7 +173,7 @@ class ReadmissionReader(Reader):
         """
         Reader.__init__(self, dataset_dir, listfile)
         self._data = [line.split(',') for line in self._data]
-        self._data = [(x, int(s), int(y), int(i), int(r), int(g), int(a), int(m)) for (x, s, y, i, r, g, a, m) in self._data]
+        self._data = [(x, int(s), int(y)) for (x, s, y) in self._data]
         # self._data = [(x, int(y)) for (x, y) in self._data]
         self._period_length = period_length
         self.columns = columns
@@ -231,25 +219,16 @@ class ReadmissionReader(Reader):
         t = self._period_length
         s = self._data[index][1]
         y = self._data[index][2]
-        insurance = self._data[index][3]
-        race = self._data[index][4]
-        gender = self._data[index][5]
-        age = self._data[index][6]
-        marital_status = self._data[index][7]
         (X, header) = self._read_timeseries(name)
 
         return {"X": X,
                 "stay_id": s,
                 "t": t,
                 "y": y,
-                "insurance": insurance,
-                "race": race,
-                "gender": gender,
-                "age": age,
-                "marital_status": marital_status,
                 "header": header,
                 "name": name}
     
+
 class DeliriumReader(Reader):
     def __init__(self, dataset_dir, listfile=None, columns=[]):
         """ Reader for readmission-30d prediction task.
@@ -261,7 +240,7 @@ class DeliriumReader(Reader):
         """
         Reader.__init__(self, dataset_dir, listfile)
         self._data = [line.split(',') for line in self._data]
-        self._data = [(x, int(s), float(t), int(y), int(i), int(r), int(g), int(a), int(m)) for (x, s, t, y, i, r, g, a, m) in self._data]
+        self._data = [(x, int(s), float(t), int(y)) for (x, s, t, y) in self._data]
         # self._data = [(x, int(y)) for (x, y) in self._data]
         self.columns = columns
 
@@ -306,24 +285,15 @@ class DeliriumReader(Reader):
         s = self._data[index][1]
         t = self._data[index][2]
         y = self._data[index][3]
-        insurance = self._data[index][4]
-        race = self._data[index][5]
-        gender = self._data[index][6]
-        age = self._data[index][7]
-        marital_status = self._data[index][8]
         (X, header) = self._read_timeseries(name)
 
         return {"X": X,
                 "stay_id": s,
                 "t": t,
                 "y": y,
-                "insurance": insurance,
-                "race": race,
-                "gender": gender,
-                "age": age,
-                "marital_status": marital_status,
                 "header": header,
                 "name": name}
+
 
 class OudReader(Reader):
     def __init__(self, dataset_dir, listfile=None, columns=[]):
@@ -336,7 +306,7 @@ class OudReader(Reader):
         """
         Reader.__init__(self, dataset_dir, listfile)
         self._data = [line.split(',') for line in self._data]
-        self._data = [(x, int(s), float(t), int(y), int(i), int(r), int(g), int(a), int(m)) for (x, s, t, y, i, r, g, a, m) in self._data]
+        self._data = [(x, int(s), float(t), int(y)) for (x, s, t, y) in self._data]
         # self._data = [(x, int(y)) for (x, y) in self._data]
         self.columns = columns
 
@@ -381,24 +351,80 @@ class OudReader(Reader):
         s = self._data[index][1]
         t = self._data[index][2]
         y = self._data[index][3]
-        insurance = self._data[index][4]
-        race = self._data[index][5]
-        gender = self._data[index][6]
-        age = self._data[index][7]
-        marital_status = self._data[index][8]
         (X, header) = self._read_timeseries(name)
 
         return {"X": X,
                 "stay_id": s,
                 "t": t,
                 "y": y,
-                "insurance": insurance,
-                "race": race,
-                "gender": gender,
-                "age": age,
-                "marital_status": marital_status,
                 "header": header,
                 "name": name}
+
+
+class SurvivalReader(Reader):
+    def __init__(self, dataset_dir, listfile=None, period_length=48.0, columns=[]):
+        """ Reader for length of stay prediction task.
+
+        :param dataset_dir: Directory where timeseries files are stored.
+        :param listfile:    Path to a listfile. If this parameter is left `None` then
+                            `dataset_dir/listfile.csv` will be used.
+        """
+        Reader.__init__(self, dataset_dir, listfile)
+        self._data = [line.split(',') for line in self._data]
+        self._data = [(x, float(t), float(y))
+                      for (x, _, _, t, y) in self._data]
+        self._period_length = period_length
+        self.columns = columns
+
+    def _read_timeseries(self, ts_filename):
+        ret = []
+        with open(os.path.join(self._dataset_dir, ts_filename), "r") as tsfile:
+            header = tsfile.readline().strip().split(',')
+            if len(self.columns) > 0:
+                indices = [header.index(column)
+                           for column in ["Hours"] + self.columns]
+            else:
+                indices = [i for i in range(len(header))]
+            assert header[0] == "Hours"
+            for line in tsfile:
+                mas = line.strip().split(',')
+                ret.append(np.array(mas)[indices])
+        return (np.stack(ret), header)
+
+    def read_example(self, index):
+        """ Reads the example with given index.
+
+        :param index: Index of the line of the listfile to read (counting starts from 0).
+        :return: Dictionary with the following keys:
+            X : np.array
+                2D array containing all events. Each row corresponds to a moment.
+                First column is the time and other columns correspond to different
+                variables.
+            t : float
+                Length of the data in hours. Note, in general, it is not equal to the
+                timestamp of last event.
+            y : float
+                Remaining time in ICU.
+            header : array of strings
+                Names of the columns. The ordering of the columns is always the same.
+            name: Name of the sample.
+        """
+        if index < 0 or index >= len(self._data):
+            raise ValueError(
+                "Index must be from 0 (inclusive) to number of lines (exclusive).")
+
+        name = self._data[index][0]
+        t = self._data[index][1]
+        y = self._data[index][2]
+        (X, header) = self._read_timeseries(name)
+
+        return {"X": X,
+                "t": self._period_length,
+                "st": t,
+                "c": y,
+                "header": header,
+                "name": name}
+
 
 class LengthOfStayReader(Reader):
     def __init__(self, dataset_dir, listfile=None):
@@ -471,21 +497,15 @@ class PhenotypingReader(Reader):
         self._data = [line.split(',') for line in self._data]
         self.data_map = {
             mas[0]: {
-                # 25 labels in total
-                'labels': list(map(int, mas[3:28])),
-                'stay_id': int(mas[1]),
-                'time': float(mas[2]),
-                "insurance": int(mas[28]),
-                "race": int(mas[29]),
-                "gender": int(mas[30]),
-                "age": int(mas[31]),
-                "marital_status": int(mas[32]),
+                'labels': list(map(int, mas[3:])),
+                'stay_id': float(mas[2]),
+                'time': float(mas[1]),
             }
             for mas in self._data
         }
-        self._data = [(mas[0], int(mas[1]), float(mas[2]), list(map(int, mas[3:28])), int(mas[28]), 
-                       int(mas[29]), int(mas[30]), int(mas[31]), int(mas[32]))
-                for mas in self._data]
+
+        self._data = [(mas[0], float(mas[1]), list(map(int, mas[3:])))
+                      for mas in self._data]
         self.columns = columns
 
     def _read_timeseries(self, ts_filename):
@@ -513,21 +533,15 @@ class PhenotypingReader(Reader):
         t = self.data_map[index]['time']
         y = self.data_map[index]['labels']
         stay_id = self.data_map[index]['stay_id']
-        insurance = self._data[index]['insurance']
-        race = self._data[index]['race']
-        gender = self._data[index]['gender']
-        age = self._data[index]['age']
-        marital_status = self._data[index]['marital_status']
+        # name = self._data[index][0]
+        # t = self._data[index][1]
+        # y = self._data[index][2]
         (X, header) = self._read_timeseries(index)
 
         return {"X": X,
                 "t": t,
                 "y": y,
-                "insurance": insurance,
-                "race": race,
-                "gender": gender,
-                "age": age,
-                "marital_status": marital_status,
+                'stay_id': stay_id,
                 "header": header,
                 "name": index}
 
@@ -554,25 +568,13 @@ class PhenotypingReader(Reader):
                 "Index must be from 0 (inclusive) to number of lines (exclusive).")
 
         name = self._data[index][0]
-        s = self._data[index][1]
-        t = self._data[index][2]
-        y = self._data[index][3]
-        insurance = self._data[index][4]
-        race = self._data[index][5]
-        gender = self._data[index][6]
-        age = self._data[index][7]
-        marital_status = self._data[index][8]
+        t = self._data[index][1]
+        y = self._data[index][2]
         (X, header) = self._read_timeseries(name)
 
         return {"X": X,
-                "stay_id": s,
                 "t": t,
                 "y": y,
-                "insurance": insurance,
-                "race": race,
-                "gender": gender,
-                "age": age,
-                "marital_status": marital_status,
                 "header": header,
                 "name": name}
 

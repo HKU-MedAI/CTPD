@@ -1,6 +1,10 @@
+from __future__ import absolute_import
+from __future__ import print_function
+
 import os
 import argparse
 import numpy as np
+from datetime import datetime
 import pandas as pd
 import yaml
 import random
@@ -111,12 +115,12 @@ def process_partition(args, definitions, code_to_group, id_to_group, group_to_id
                 # create phenotyping
                 cur_phenotype_labels = [0 for i in range(len(id_to_group))]
                 icustay = label_df['Icustay'].iloc[0]
-                diagnoses_df = pd.read_csv(os.path.join(patient_folder, "diagnoses.csv"), dtype={"icd_code": str})
-                diagnoses_df = diagnoses_df[diagnoses_df.stay_id == icustay]
+                diagnoses_df = pd.read_csv(os.path.join(patient_folder, "diagnoses.csv"), dtype={"ICD9_CODE": str})
+                diagnoses_df = diagnoses_df[diagnoses_df.ICUSTAY_ID == icustay]
 
                 for index, row in diagnoses_df.iterrows():
-                    if row['use_in_benchmark']:
-                        code = row['icd_code']
+                    if row['USE_IN_BENCHMARK']:
+                        code = row['ICD9_CODE']
                         group = code_to_group[code]
                         group_id = group_to_id[group]
                         cur_phenotype_labels[group_id] = 1
@@ -126,14 +130,14 @@ def process_partition(args, definitions, code_to_group, id_to_group, group_to_id
                 phenotype_labels.append(cur_phenotype_labels)
 
                 # create decompensation
-                stay = stays_df[stays_df.stay_id == icustay]
-                deathtime = pd.to_datetime(stay['deathtime'].iloc[0])
-                intime = pd.to_datetime(stay['intime'].iloc[0])
+                stay = stays_df[stays_df.ICUSTAY_ID == icustay]
+                deathtime = stay['DEATHTIME'].iloc[0]
+                intime = stay['INTIME'].iloc[0]
                 if pd.isnull(deathtime):
                     lived_time = 1e18
                 else:
-                    # conversion to pydatetime is needed to avoid overflow issues when subtracting
-                    lived_time = (deathtime.to_pydatetime() - intime.to_pydatetime()).total_seconds() / 3600.0
+                    lived_time = (datetime.strptime(deathtime, "%Y-%m-%d %H:%M:%S") -
+                                  datetime.strptime(intime, "%Y-%m-%d %H:%M:%S")).total_seconds() / 3600.0
 
                 sample_times = np.arange(0.0, min(los, lived_time) + eps, sample_rate)
                 sample_times = np.array([int(x+eps) for x in sample_times])
@@ -202,7 +206,7 @@ def main():
     args, _ = parser.parse_known_args()
 
     with open(args.phenotype_definitions) as definitions_file:
-        definitions = yaml.safe_load(definitions_file)
+        definitions = yaml.load(definitions_file)
 
     code_to_group = {}
     for group in definitions:

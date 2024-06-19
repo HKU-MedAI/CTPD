@@ -14,9 +14,7 @@ def move_to_partition(args, patients, partition):
 
 def main():
     parser = argparse.ArgumentParser(description='Split data into train and test sets.')
-    parser.add_argument('--subjects_root_path', type=str, 
-                        default=os.path.join(os.path.dirname(__file__), '../../data/root/'),
-                        help='Directory containing subject sub-directories.')
+    parser.add_argument('subjects_root_path', type=str, help='Directory containing subject sub-directories.')
     args, _ = parser.parse_known_args()
 
     test_set = set()

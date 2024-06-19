@@ -7,23 +7,24 @@ import argparse
 import json
 import pickle
 import pandas as pd
-from pathlib import Path
+import ipdb
+from pyparsing import col
 from tqdm import tqdm
 import numpy as np
 import statistics as stat
-from typing import List
-import ipdb
+from typing import List, Dict
 
-from cmehr.paths import *
 from cmehr.preprocess.mimic4.mimic4models.readers import (InHospitalMortalityReader, PhenotypingReader, ReadmissionReader, 
                                                           DeliriumReader, OudReader, Reader)
+# from cmehr.preprocess.mimic4.mimic4models.preprocessing import Normalizer
 import cmehr.preprocess.mimic4.mimic4models.common_utils as common_utils
 from cmehr.preprocess.mimic4.mimic4models.preprocessing import Discretizer
+from cmehr.paths import *
 
 
 parser = argparse.ArgumentParser(
     description='Create irregular time series from MIMIC 4')
-parser.add_argument("--task", default='sud', type=str,
+parser.add_argument("--task", default='oud', type=str,
                     choices=["ihm", "pheno", "readm", "delirium", "oud"],
                     help="task name to create data")
 parser.add_argument("--output_dir", type=str,
@@ -39,6 +40,7 @@ parser.add_argument('--cxr_csv_path', type=str,
                     default="/home/fywang/Documents/EHR_codebase/MMMSPG/data/mimiciv_fairness_benchmark/cxr/admission_w_cxr.csv")
 args = parser.parse_args()
 
+
 args.dataset_dir = Path(args.dataset_dir) / args.task
 if args.task == 'ihm' or args.task == 'readm':
     args.period_length = 48
@@ -51,6 +53,9 @@ output_dir = args.output_dir / "_".join(args.modality_type) / args.task
 os.makedirs(output_dir, exist_ok=True)
 print(args)
 
+config_path = str(ROOT_PATH / "src/cmehr/preprocess/mimic4/mimic4models/resources/discretizer_config.json")
+channel_path = str(ROOT_PATH / "src/cmehr/preprocess/mimic4/mimic4models/resources/channel_info.json")
+
 
 class Discretizer_multi(Discretizer):
     '''
@@ -58,10 +63,8 @@ class Discretizer_multi(Discretizer):
     '''
 
     def __init__(self, timestep=0.8, store_masks=True, impute_strategy='zero', start_time='zero',
-                 config_path=str(
-                     ROOT_PATH / "src/cmehr/preprocess/mimic4/mimic4models/resources/discretizer_config.json"),
-                 channel_path=str(
-                     ROOT_PATH / "src/cmehr/preprocess/mimic4/mimic4models/resources/channel_info.json")
+                 config_path=config_path,
+                 channel_path=channel_path
                  ):
         super(Discretizer_multi, self).__init__(
             timestep, store_masks, impute_strategy, start_time, config_path)
@@ -94,6 +97,18 @@ class Discretizer_multi(Discretizer):
 
         N_bins = int(max_hours / self._timestep + 1.0 - eps)
 
+        # cur_len = 0
+        # begin_pos = [0 for i in range(N_channels)]
+        # end_pos = [0 for i in range(N_channels)]
+        # for i in range(N_channels):
+        #     channel = self._id_to_channel[i]
+        #     begin_pos[i] = cur_len
+        #     if self._is_categorical_channel[channel]:
+        #         end_pos[i] = begin_pos[i] + len(self._possible_values[channel])
+        #     else:
+        #         end_pos[i] = begin_pos[i] + 1
+        #     cur_len = end_pos[i]
+
         data = np.zeros(shape=(N_bins, N_channels), dtype=float)
         # data = np.zeros(shape=(N_bins, cur_len), dtype=float)
         mask = np.zeros(shape=(N_bins, N_channels), dtype=int)
@@ -121,11 +136,6 @@ class Discretizer_multi(Discretizer):
                     continue
                 channel = header[j]
                 channel_id = self._channel_to_id[channel]
-
-                lb = self._normal_values_range[channel][0]
-                ub = self._normal_values_range[channel][1]
-                if not lb <= float(row[j]) <= ub:
-                    continue
 
                 total_data += 1
                 if mask[bin_id][channel_id] == 1:
@@ -218,18 +228,13 @@ def save_data(reader: Reader,
     ts = ret["t"]
     labels = ret["y"]
     names = ret["name"]
-    insurances = ret["insurance"]
-    marital_status = ret["marital_status"]
-    races = ret["race"]
-    genders = ret["gender"]
-    ages = ret["age"]
     # procesed by discretizer
     reg_data = [discretizer.transform(X, end=t)[0]
                 for (X, t) in zip(irg_data, ts)]
 
     with open(os.path.join(outputdir, f"ts_{mode}.pkl"), 'wb') as f:
         # Write the processed data to pickle file so it is faster to just read later
-        pickle.dump((irg_data, reg_data, labels, insurances, marital_status, races, genders, ages, names), f)
+        pickle.dump((irg_data, reg_data, labels, names), f)
 
     return
 
@@ -238,19 +243,17 @@ def extract_irregular(dataPath_in, dataPath_out):
     """ Extract irregular time series """
 
     # Opening JSON file
-    channel_info_file = open(str(
-        ROOT_PATH / "src/cmehr/preprocess/mimic4/mimic4models/resources/channel_info.json"))
+    channel_info_file = open(channel_path)
     channel_info = json.load(channel_info_file)
 
-    dis_config_file = open(str(
-        ROOT_PATH / "src/cmehr/preprocess/mimic4/mimic4models/resources/discretizer_config.json"))
+    dis_config_file = open(config_path)
     dis_config = json.load(dis_config_file)
 
     channel_name = dis_config['id_to_channel']
     is_catg = dis_config['is_categorical_channel']
 
     with open(dataPath_in, 'rb') as f:
-        ireg_data, reg_data, y, insurances, marital_status, races, genders, ages, names = pickle.load(f)
+        ireg_data, reg_data, y, names = pickle.load(f)
 
     data_irregular = []
     for p_id, x, in tqdm(enumerate(ireg_data), total=len(ireg_data), desc="Extract irregular time series"):
@@ -283,11 +286,6 @@ def extract_irregular(dataPath_in, dataPath_out):
         data_i['reg_ts'] = reg_data[p_id]
         data_i['name'] = names[p_id]
         data_i['label'] = y[p_id]
-        data_i['insurance'] = insurances[p_id]
-        data_i['marital_status'] = marital_status[p_id]
-        data_i['race'] = races[p_id]
-        data_i['gender'] = genders[p_id]
-        data_i['age'] = ages[p_id]
         data_i['ts_tt'] = tt
         data_i['irg_ts'] = np.array(features_list)
         data_i['irg_ts_mask'] = np.array(features_mask_list)
@@ -383,6 +381,54 @@ def diff_float(time1, time2):
     return h / 60.0
 
 
+# def get_time_to_end_diffs(times, st, endtime=49):
+#     timetoends = []
+#     difftimes = []
+#     et = np.datetime64(st) + np.timedelta64(endtime, 'h')
+#     for t in times:
+#         time = np.datetime64(t)
+#         dt = diff_float(time, et)
+#         assert dt >= 0  # delta t should be positive
+#         difftimes.append(dt)
+#     timetoends.append(difftimes)
+#     return timetoends
+
+
+# def get_time_diffs(times, st):
+#     difftimes = []
+#     for t in times:
+#         time = np.datetime64(t)
+#         st = np.datetime64(st)
+#         dt = diff_float(time, st)
+#         # assert dt >= 0  # delta t should be positive
+#         difftimes.append(dt)
+#     return difftimes
+
+
+# def merge_text_ts(textdict, timedict, start_times, tslist, period_length, dataPath_out):
+#     suceed = 0
+#     missing = 0
+#     new_tslist = []
+#     for idx, ts_dict in enumerate(tslist):
+#         name = ts_dict['name']
+#         if name in textdict:
+#             ts_dict['text_data'] = textdict[name]
+#             ts_dict['text_time'] = get_time_diffs(
+#                 timedict[name], start_times[name])
+#             suceed += 1
+#             new_tslist.append(ts_dict)
+#         else:
+#             missing += 1
+
+#     print("Suceed Merging: ", suceed)
+#     print("Missing Merging: ", missing)
+
+#     with open(dataPath_out, 'wb') as f:
+#         pickle.dump(new_tslist, f)
+
+#     return
+
+
 def merge_cxr(cxr_csv_file: str, list_csv_file: str, ts_data: List, period_length: int, dataPath_out: str):
     list_csv_df = pd.read_csv(list_csv_file)
     name_stay_id_dict = dict(
@@ -421,11 +467,9 @@ def merge_cxr(cxr_csv_file: str, list_csv_file: str, ts_data: List, period_lengt
 
 
 def create_irregular_ts():
-    config_path = ROOT_PATH / "src/cmehr/preprocess/mimic4/mimic4models/resources/discretizer_config.json"
     with open(config_path) as f:
         config = json.load(f)
     variables = config['id_to_channel']
-
     if args.task == 'ihm':
         train_reader = InHospitalMortalityReader(
             dataset_dir=args.dataset_dir / "train",
@@ -498,7 +542,7 @@ def create_irregular_ts():
             listfile=args.dataset_dir / "test_listfile.csv",
             columns=variables
         )
-    elif args.task == "sud":
+    elif args.task == "oud":
         train_reader = OudReader(
             dataset_dir=args.dataset_dir / "train",
             listfile=args.dataset_dir / "train_listfile.csv",
@@ -529,17 +573,17 @@ def create_irregular_ts():
     cont_channels = [i for (i, x) in enumerate(
         discretizer_header) if x.find("->") == -1]
 
-    # choose here which columns to standardize
+    # # choose here which columns to standardize
     # normalizer = Normalizer(fields=cont_channels)
     # if args.task == 'ihm':
     #     normalizer_state = str(
     #         ROOT_PATH /
-    #         f"dataset/mimic4/in_hospital_mortality/ihm_ts{args.timestep}.input_str:{args.imputation}.start_time:zero.normalizer"
+    #         f"cmehr/ext/mimic4models/in_hospital_mortality/ihm_ts{args.timestep}.input_str:{args.imputation}.start_time:zero.normalizer"
     #     )
     # elif args.task == "pheno":
     #     normalizer_state = str(
     #         ROOT_PATH /
-    #         f"dataset/mimic4/phenotyping/ph_ts{args.timestep}.input_str:{args.imputation}.start_time:zero.normalizer"
+    #         f"cmehr/ext/mimic4models/phenotyping/ph_ts{args.timestep}.input_str:{args.imputation}.start_time:zero.normalizer"
     #     )
     # normalizer.load_params(normalizer_state)
 
@@ -573,6 +617,33 @@ def create_irregular_ts():
             os.path.join(output_dir, 'mean_std.pkl')
         )
 
+    # if "Text" in args.modality_type:
+    #     train_textdata_fixed = MIMIC4_BENCHMARK_PATH / "train_note"
+    #     train_starttime_path = train_textdata_fixed / "train_starttime.pkl"
+    #     test_textdata_fixed = MIMIC4_BENCHMARK_PATH / "test_note"
+    #     test_starttime_path = test_textdata_fixed / "test_starttime.pkl"
+
+    #     print("Step 5: Load Text data")
+    #     for mode in ['train', 'val', 'test']:
+    #         with open(os.path.join(output_dir, f"norm_ts_{mode}.pkl"), 'rb') as f:
+    #             tsdata = pickle.load(f)
+
+    #         names = [data['name'] for data in tsdata]
+
+    #         if (mode == 'train') or (mode == 'val'):
+    #             text_reader = TextReader(
+    #                 train_textdata_fixed, train_starttime_path)
+    #         else:
+    #             text_reader = TextReader(
+    #                 test_textdata_fixed, test_starttime_path)
+
+    #         data_text, data_times, data_time = text_reader.read_all_text_append_json(
+    #             names, args.period_length)
+
+    #         merge_text_ts(data_text, data_times, data_time, tsdata,
+    #                       args.period_length,
+    #                       os.path.join(output_dir, f"{mode}_p2x_data.pkl"))
+            
     if "CXR" in args.modality_type:
         print("Step 5: Load CXR data")
         mimic4_cxr_csv = args.cxr_csv_path

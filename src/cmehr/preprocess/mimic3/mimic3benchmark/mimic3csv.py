@@ -3,7 +3,8 @@ import numpy as np
 import os
 import pandas as pd
 from tqdm import tqdm
-from cmehr.preprocess.mimic3.mimic3benchmark.util import dataframe_from_csv
+
+from .util import dataframe_from_csv
 
 
 def read_patients_table(mimic3_path):
@@ -16,11 +17,8 @@ def read_patients_table(mimic3_path):
 
 def read_admissions_table(mimic3_path):
     admits = dataframe_from_csv(os.path.join(mimic3_path, 'ADMISSIONS.csv'))
-    # add more sensitive features, 
-    # TODO: need 'MARITAL_STATUS'?
-    admits = admits[['SUBJECT_ID', 'HADM_ID', 'ADMITTIME', 'DISCHTIME', 
-                     'ADMISSION_TYPE', 'DISCHARGE_LOCATION',
-                     'DEATHTIME', 'ETHNICITY', 'INSURANCE', 'MARITAL_STATUS', 'DIAGNOSIS']]
+    admits = admits[['SUBJECT_ID', 'HADM_ID', 'ADMITTIME',
+                     'DISCHTIME', 'DEATHTIME', 'ETHNICITY', 'DIAGNOSIS']]
     admits.ADMITTIME = pd.to_datetime(admits.ADMITTIME)
     admits.DISCHTIME = pd.to_datetime(admits.DISCHTIME)
     admits.DEATHTIME = pd.to_datetime(admits.DEATHTIME)
@@ -35,17 +33,23 @@ def read_icustays_table(mimic3_path):
 
 
 def read_icd_diagnoses_table(mimic3_path):
-    codes = dataframe_from_csv(os.path.join(mimic3_path, 'D_ICD_DIAGNOSES.csv'))
+    codes = dataframe_from_csv(os.path.join(
+        mimic3_path, 'D_ICD_DIAGNOSES.csv'))
     codes = codes[['ICD9_CODE', 'SHORT_TITLE', 'LONG_TITLE']]
-    diagnoses = dataframe_from_csv(os.path.join(mimic3_path, 'DIAGNOSES_ICD.csv'))
-    diagnoses = diagnoses.merge(codes, how='inner', left_on='ICD9_CODE', right_on='ICD9_CODE')
-    diagnoses[['SUBJECT_ID', 'HADM_ID', 'SEQ_NUM']] = diagnoses[['SUBJECT_ID', 'HADM_ID', 'SEQ_NUM']].astype(int)
+    diagnoses = dataframe_from_csv(
+        os.path.join(mimic3_path, 'DIAGNOSES_ICD.csv'))
+    diagnoses = diagnoses.merge(
+        codes, how='inner', left_on='ICD9_CODE', right_on='ICD9_CODE')
+    diagnoses[['SUBJECT_ID', 'HADM_ID', 'SEQ_NUM']] = diagnoses[[
+        'SUBJECT_ID', 'HADM_ID', 'SEQ_NUM']].astype(int)
     return diagnoses
 
 
 def read_events_table_by_row(mimic3_path, table):
-    nb_rows = {'chartevents': 330712484, 'labevents': 27854056, 'outputevents': 4349219}
-    reader = csv.DictReader(open(os.path.join(mimic3_path, table.upper() + '.csv'), 'r'))
+    nb_rows = {'chartevents': 330712484,
+               'labevents': 27854056, 'outputevents': 4349219}
+    reader = csv.DictReader(
+        open(os.path.join(mimic3_path, table.upper() + '.csv'), 'r'))
     for i, row in enumerate(reader):
         if 'ICUSTAY_ID' not in row:
             row['ICUSTAY_ID'] = ''
@@ -53,7 +57,8 @@ def read_events_table_by_row(mimic3_path, table):
 
 
 def count_icd_codes(diagnoses, output_path=None):
-    codes = diagnoses[['ICD9_CODE', 'SHORT_TITLE', 'LONG_TITLE']].drop_duplicates().set_index('ICD9_CODE')
+    codes = diagnoses[['ICD9_CODE', 'SHORT_TITLE', 'LONG_TITLE']
+                      ].drop_duplicates().set_index('ICD9_CODE')
     codes['COUNT'] = diagnoses.groupby('ICD9_CODE')['ICUSTAY_ID'].count()
     codes.COUNT = codes.COUNT.fillna(0).astype(int)
     codes = codes[codes.COUNT > 0]
@@ -63,7 +68,8 @@ def count_icd_codes(diagnoses, output_path=None):
 
 
 def remove_icustays_with_transfers(stays):
-    stays = stays[(stays.FIRST_WARDID == stays.LAST_WARDID) & (stays.FIRST_CAREUNIT == stays.LAST_CAREUNIT)]
+    stays = stays[(stays.FIRST_WARDID == stays.LAST_WARDID) &
+                  (stays.FIRST_CAREUNIT == stays.LAST_CAREUNIT)]
     return stays[['SUBJECT_ID', 'HADM_ID', 'ICUSTAY_ID', 'LAST_CAREUNIT', 'DBSOURCE', 'INTIME', 'OUTTIME', 'LOS']]
 
 
@@ -84,24 +90,30 @@ def add_age_to_icustays(stays):
 
 
 def add_inhospital_mortality_to_icustays(stays):
-    mortality = stays.DOD.notnull() & ((stays.ADMITTIME <= stays.DOD) & (stays.DISCHTIME >= stays.DOD))
-    mortality = mortality | (stays.DEATHTIME.notnull() & ((stays.ADMITTIME <= stays.DEATHTIME) & (stays.DISCHTIME >= stays.DEATHTIME)))
+    mortality = stays.DOD.notnull() & ((stays.ADMITTIME <= stays.DOD)
+                                       & (stays.DISCHTIME >= stays.DOD))
+    mortality = mortality | (stays.DEATHTIME.notnull() & (
+        (stays.ADMITTIME <= stays.DEATHTIME) & (stays.DISCHTIME >= stays.DEATHTIME)))
     stays['MORTALITY'] = mortality.astype(int)
     stays['MORTALITY_INHOSPITAL'] = stays['MORTALITY']
     return stays
 
 
 def add_inunit_mortality_to_icustays(stays):
-    mortality = stays.DOD.notnull() & ((stays.INTIME <= stays.DOD) & (stays.OUTTIME >= stays.DOD))
-    mortality = mortality | (stays.DEATHTIME.notnull() & ((stays.INTIME <= stays.DEATHTIME) & (stays.OUTTIME >= stays.DEATHTIME)))
+    mortality = stays.DOD.notnull() & ((stays.INTIME <= stays.DOD)
+                                       & (stays.OUTTIME >= stays.DOD))
+    mortality = mortality | (stays.DEATHTIME.notnull() & (
+        (stays.INTIME <= stays.DEATHTIME) & (stays.OUTTIME >= stays.DEATHTIME)))
     stays['MORTALITY_INUNIT'] = mortality.astype(int)
     return stays
 
 
 def filter_admissions_on_nb_icustays(stays, min_nb_stays=1, max_nb_stays=1):
     to_keep = stays.groupby('HADM_ID').count()[['ICUSTAY_ID']].reset_index()
-    to_keep = to_keep[(to_keep.ICUSTAY_ID >= min_nb_stays) & (to_keep.ICUSTAY_ID <= max_nb_stays)][['HADM_ID']]
-    stays = stays.merge(to_keep, how='inner', left_on='HADM_ID', right_on='HADM_ID')
+    to_keep = to_keep[(to_keep.ICUSTAY_ID >= min_nb_stays) & (
+        to_keep.ICUSTAY_ID <= max_nb_stays)][['HADM_ID']]
+    stays = stays.merge(to_keep, how='inner',
+                        left_on='HADM_ID', right_on='HADM_ID')
     return stays
 
 
@@ -145,7 +157,8 @@ def break_up_diagnoses_by_subject(diagnoses, output_path, subjects=None):
 
 def read_events_table_and_break_up_by_subject(mimic3_path, table, output_path,
                                               items_to_keep=None, subjects_to_keep=None):
-    obs_header = ['SUBJECT_ID', 'HADM_ID', 'ICUSTAY_ID', 'CHARTTIME', 'ITEMID', 'VALUE', 'VALUEUOM']
+    obs_header = ['SUBJECT_ID', 'HADM_ID', 'ICUSTAY_ID',
+                  'CHARTTIME', 'ITEMID', 'VALUE', 'VALUEUOM']
     if items_to_keep is not None:
         items_to_keep = set([str(s) for s in items_to_keep])
     if subjects_to_keep is not None:
@@ -169,15 +182,17 @@ def read_events_table_and_break_up_by_subject(mimic3_path, table, output_path,
             f = open(fn, 'w')
             f.write(','.join(obs_header) + '\n')
             f.close()
-        w = csv.DictWriter(open(fn, 'a'), fieldnames=obs_header, quoting=csv.QUOTE_MINIMAL)
+        w = csv.DictWriter(open(fn, 'a'), fieldnames=obs_header,
+                           quoting=csv.QUOTE_MINIMAL)
         w.writerows(data_stats.curr_obs)
         data_stats.curr_obs = []
 
-    nb_rows_dict = {'chartevents': 330712484, 'labevents': 27854056, 'outputevents': 4349219}
+    nb_rows_dict = {'chartevents': 330712484,
+                    'labevents': 27854056, 'outputevents': 4349219}
     nb_rows = nb_rows_dict[table.lower()]
 
     for row, row_no, _ in tqdm(read_events_table_by_row(mimic3_path, table), total=nb_rows,
-                                                        desc='Processing {} table'.format(table)):
+                               desc='Processing {} table'.format(table)):
 
         if (subjects_to_keep is not None) and (row['SUBJECT_ID'] not in subjects_to_keep):
             continue

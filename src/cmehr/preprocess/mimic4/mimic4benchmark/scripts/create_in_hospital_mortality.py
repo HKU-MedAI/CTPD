@@ -1,4 +1,7 @@
+from __future__ import absolute_import
 from tqdm import tqdm
+from __future__ import print_function
+
 import os
 import argparse
 import pandas as pd
@@ -28,6 +31,7 @@ def process_partition(args, partition, eps=1e-6, n_hours=48):
                 # empty label file
                 if label_df.shape[0] == 0:
                     continue
+                icustay = label_df['Icustay'].iloc[0]
 
                 mortality = int(label_df.iloc[0]["Mortality"])
                 los = 24.0 * label_df.iloc[0]['Length of Stay']  # in hours
@@ -38,21 +42,6 @@ def process_partition(args, partition, eps=1e-6, n_hours=48):
 
                 if los < n_hours - eps:
                     continue
-                insurance = int(label_df.iloc[0]['Insurance'])
-                # in mimiciv, others is a category in insurance and race
-                if insurance == 0:
-                    continue
-                race = int(label_df.iloc[0]['Ethnicity'])
-                if race == 0:
-                    continue
-                gender = int(label_df.iloc[0]['Gender'])
-                if gender <= 0:
-                    continue
-                age = 1 if int(label_df.iloc[0]['Age']) >= 75 else 0
-
-                marital_status = int(label_df.iloc[0]['Marital_Status'])
-                if marital_status <= 0:
-                    continue
 
                 ts_lines = tsfile.readlines()
                 header = ts_lines[0]
@@ -61,8 +50,6 @@ def process_partition(args, partition, eps=1e-6, n_hours=48):
 
                 ts_lines = [line for (line, t) in zip(ts_lines, event_times)
                             if -eps < t < n_hours + eps]
-
-                icustay = label_df['Icustay'].iloc[0] 
 
                 # no measurements in ICU
                 if len(ts_lines) == 0:
@@ -74,8 +61,8 @@ def process_partition(args, partition, eps=1e-6, n_hours=48):
                     outfile.write(header)
                     for line in ts_lines:
                         outfile.write(line)
-                xy_pairs.append((output_ts_filename, icustay, mortality, insurance, race, gender, age, marital_status))
-                # xy_pairs.append((output_ts_filename, mortality))
+
+                xy_pairs.append((output_ts_filename, icustay, mortality))
 
     print("Number of created samples:", len(xy_pairs))
     if partition == "train":
@@ -84,21 +71,17 @@ def process_partition(args, partition, eps=1e-6, n_hours=48):
         xy_pairs = sorted(xy_pairs)
 
     with open(os.path.join(output_dir, "listfile.csv"), "w") as listfile:
-        listfile.write('stay,stay_id,y_true,insurance,race,gender,age,marital_status\n')
-        for (x, s, y, i, r, g, a, m) in xy_pairs:
-            listfile.write('{},{},{:d},{:d},{:d},{:d},{:d},{:d}\n'.format(x, s, y, i, r, g, a, m))
-        # for (x, y) in xy_pairs:
-        #     listfile.write('{},{:d}\n'.format(x, y))
+        listfile.write('stay,period_length,stay_id,y_true\n')
+        for (x, icustay, y) in xy_pairs:
+            listfile.write('{},0,{},{:d}\n'.format(x, icustay, y))
 
 
 def main():
     parser = argparse.ArgumentParser(
         description="Create data for in-hospital mortality prediction task.")
-    parser.add_argument('--root_path', type=str,
-                        default=os.path.join(os.path.dirname(__file__), '../../data/root/'),
+    parser.add_argument('root_path', type=str,
                         help="Path to root folder containing train and test sets.")
-    parser.add_argument('--output_path', type=str,
-                        default=os.path.join(os.path.dirname(__file__), '../../data/ihm/'),
+    parser.add_argument('output_path', type=str,
                         help="Directory where the created data should be stored.")
     args, _ = parser.parse_known_args()
 

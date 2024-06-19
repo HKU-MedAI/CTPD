@@ -1,9 +1,12 @@
-from dataset.mimic4.mimic4_model.readers import InHospitalMortalityReader
-from dataset.mimic4.mimic4_model.readers import DecompensationReader
-from dataset.mimic4.mimic4_model.readers import LengthOfStayReader
-from dataset.mimic4.mimic4_model.readers import PhenotypingReader
-from dataset.mimic4.mimic4_model.readers import MultitaskReader
-from dataset.mimic4.mimic4_model.preprocessing import Discretizer, Normalizer
+from __future__ import absolute_import
+from __future__ import print_function
+
+from mimic3benchmark.readers import InHospitalMortalityReader
+from mimic3benchmark.readers import DecompensationReader
+from mimic3benchmark.readers import LengthOfStayReader
+from mimic3benchmark.readers import PhenotypingReader
+from mimic3benchmark.readers import MultitaskReader
+from mimic3models.preprocessing import Discretizer, Normalizer
 
 import os
 import argparse
@@ -76,8 +79,7 @@ def main():
         normalizer._feed_data(data)
     print('\n')
 
-    # all dashes (-) were colons(:)
-    file_name = '{}_ts-{:.2f}_impute-{}_start-{}_masks-{}_n-{}.normalizer'.format(
+    file_name = '{}_ts:{:.2f}_impute:{}_start:{}_masks:{}_n:{}.normalizer'.format(
         args.task, args.timestep, args.impute_strategy, args.start_time, args.store_masks, n_samples)
     file_name = os.path.join(args.output_dir, file_name)
     print('Saving the state in {} ...'.format(file_name))

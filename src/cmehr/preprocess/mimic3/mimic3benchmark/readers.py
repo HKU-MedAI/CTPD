@@ -78,7 +78,8 @@ class DecompensationReader(Reader):
             name: Name of the sample.
         """
         if index < 0 or index >= len(self._data):
-            raise ValueError("Index must be from 0 (inclusive) to number of examples (exclusive).")
+            raise ValueError(
+                "Index must be from 0 (inclusive) to number of examples (exclusive).")
 
         name = self._data[index][0]
         t = self._data[index][1]
@@ -103,7 +104,7 @@ class InHospitalMortalityReader(Reader):
         """
         Reader.__init__(self, dataset_dir, listfile)
         self._data = [line.split(',') for line in self._data]
-        self._data = [(x, int(y), int(i), int(r), int(g), int(a), int(m)) for (x, y, i, r, g, a, m) in self._data]
+        self._data = [(x, int(y)) for (x, y) in self._data]
         self._period_length = period_length
 
     def _read_timeseries(self, ts_filename):
@@ -135,95 +136,19 @@ class InHospitalMortalityReader(Reader):
             name: Name of the sample.
         """
         if index < 0 or index >= len(self._data):
-            raise ValueError("Index must be from 0 (inclusive) to number of lines (exclusive).")
+            raise ValueError(
+                "Index must be from 0 (inclusive) to number of lines (exclusive).")
 
         name = self._data[index][0]
         t = self._period_length
         y = self._data[index][1]
-        insurance = self._data[index][2]
-        race = self._data[index][3]
-        gender = self._data[index][4]
-        age = self._data[index][5]
-        marital_status = self._data[index][6]
         (X, header) = self._read_timeseries(name)
 
         return {"X": X,
                 "t": t,
                 "y": y,
-                "insurance": insurance,
-                "race": race,
-                "gender": gender,
-                "age": age,
-                "marital_status": marital_status,
                 "header": header,
                 "name": name}
-
-class ReadmissionReader(Reader):
-    def __init__(self, dataset_dir, listfile=None, period_length=48.0):
-        """ Reader for readmission-30d prediction task.
-
-        :param dataset_dir:   Directory where timeseries files are stored.
-        :param listfile:      Path to a listfile. If this parameter is left `None` then
-                              `dataset_dir/listfile.csv` will be used.
-        :param period_length: Length of the period (in hours) from which the prediction is done.
-        """
-        Reader.__init__(self, dataset_dir, listfile)
-        self._data = [line.split(',') for line in self._data]
-        self._data = [(x, int(y), int(i), int(r), int(g), int(a), int(m)) for (x, y, i, r, g, a, m) in self._data]
-        self._period_length = period_length
-
-    def _read_timeseries(self, ts_filename):
-        ret = []
-        with open(os.path.join(self._dataset_dir, ts_filename), "r") as tsfile:
-            header = tsfile.readline().strip().split(',')
-            assert header[0] == "Hours"
-            for line in tsfile:
-                mas = line.strip().split(',')
-                ret.append(np.array(mas))
-        return (np.stack(ret), header)
-
-    def read_example(self, index):
-        """ Reads the example with given index.
-
-        :param index: Index of the line of the listfile to read (counting starts from 0).
-        :return: Dictionary with the following keys:
-            X : np.array
-                2D array containing all events. Each row corresponds to a moment.
-                First column is the time and other columns correspond to different
-                variables.
-            t : float
-                Length of the data in hours. Note, in general, it is not equal to the
-                timestamp of last event.
-            y : int (0 or 1)
-                In-hospital mortality.
-            header : array of strings
-                Names of the columns. The ordering of the columns is always the same.
-            name: Name of the sample.
-        """
-        if index < 0 or index >= len(self._data):
-            raise ValueError("Index must be from 0 (inclusive) to number of lines (exclusive).")
-
-        name = self._data[index][0]
-        t = self._period_length
-        y = self._data[index][1]
-        insurance = self._data[index][2]
-        race = self._data[index][3]
-        gender = self._data[index][4]
-        age = self._data[index][5]
-        marital_status = self._data[index][6]
-        (X, header) = self._read_timeseries(name)
-
-        return {"X": X,
-                "t": t,
-                "y": y,
-                "insurance": insurance,
-                "race": race,
-                "gender": gender,
-                "age": age,
-                "marital_status": marital_status,
-                "header": header,
-                "name": name}
-
 
 
 class LengthOfStayReader(Reader):
@@ -270,7 +195,8 @@ class LengthOfStayReader(Reader):
             name: Name of the sample.
         """
         if index < 0 or index >= len(self._data):
-            raise ValueError("Index must be from 0 (inclusive) to number of lines (exclusive).")
+            raise ValueError(
+                "Index must be from 0 (inclusive) to number of lines (exclusive).")
 
         name = self._data[index][0]
         t = self._data[index][1]
@@ -294,22 +220,8 @@ class PhenotypingReader(Reader):
         """
         Reader.__init__(self, dataset_dir, listfile)
         self._data = [line.split(',') for line in self._data]
-        # self.data_map = {
-        #     mas[0]: {
-        #         # 25 labels in total
-        #         'labels': list(map(int, mas[2:27])),
-        #         'time': float(mas[1]),
-        #         "insurance": int(mas[27]),
-        #         "race": int(mas[28]),
-        #         "gender": int(mas[29]),
-        #         "age": int(mas[30]),
-        #         "marital_status": int(mas[31]),
-        #     }
-        #     for mas in self._data
-        # }
-        # self._data = [(mas[0], float(mas[1]), list(map(int, mas[2:]))) for mas in self._data]
-        self._data = [(mas[0], float(mas[1]), list(map(int, mas[2:27])), int(mas[27]), int(mas[28]), int(mas[29]), int(mas[30]), int(mas[31]))
-                for mas in self._data]
+        self._data = [(mas[0], float(mas[1]), list(map(int, mas[2:])))
+                      for mas in self._data]
 
     def _read_timeseries(self, ts_filename):
         ret = []
@@ -340,26 +252,17 @@ class PhenotypingReader(Reader):
             name: Name of the sample.
         """
         if index < 0 or index >= len(self._data):
-            raise ValueError("Index must be from 0 (inclusive) to number of lines (exclusive).")
+            raise ValueError(
+                "Index must be from 0 (inclusive) to number of lines (exclusive).")
 
         name = self._data[index][0]
         t = self._data[index][1]
         y = self._data[index][2]
-        insurance = self._data[index][3]
-        race = self._data[index][4]
-        gender = self._data[index][5]
-        age = self._data[index][6]
-        marital_status = self._data[index][7]
         (X, header) = self._read_timeseries(name)
 
         return {"X": X,
                 "t": t,
                 "y": y,
-                "insurance": insurance,
-                "race": race,
-                "gender": gender,
-                "age": age,
-                "marital_status": marital_status,
                 "header": header,
                 "name": name}
 
@@ -432,7 +335,8 @@ class MultitaskReader(Reader):
             name: Name of the sample.
         """
         if index < 0 or index >= len(self._data):
-            raise ValueError("Index must be from 0 (inclusive) to number of lines (exclusive).")
+            raise ValueError(
+                "Index must be from 0 (inclusive) to number of lines (exclusive).")
 
         name = self._data[index][0]
         (X, header) = self._read_timeseries(name)

@@ -56,21 +56,21 @@ def process_partition(args, partition, eps=1e-6, n_hours=48):
                 if los < n_hours - eps:
                     continue
 
-                insurance = int(label_df.iloc[0]['Insurance'])
-                # in mimiciv, others is a category in insurance and race
-                if insurance == 0:
-                    continue
-                race = int(label_df.iloc[0]['Ethnicity'])
-                if race == 0:
-                    continue
-                gender = int(label_df.iloc[0]['Gender'])
-                if gender <= 0:
-                    continue
-                age = 1 if int(label_df.iloc[0]['Age']) >= 75 else 0
+                # insurance = int(label_df.iloc[0]['Insurance'])
+                # # in mimiciv, others is a category in insurance and race
+                # if insurance == 0:
+                #     continue
+                # race = int(label_df.iloc[0]['Ethnicity'])
+                # if race == 0:
+                #     continue
+                # gender = int(label_df.iloc[0]['Gender'])
+                # if gender <= 0:
+                #     continue
+                # age = 1 if int(label_df.iloc[0]['Age']) >= 75 else 0
 
-                marital_status = int(label_df.iloc[0]['Marital_Status'])
-                if marital_status <= 0:
-                    continue
+                # marital_status = int(label_df.iloc[0]['Marital_Status'])
+                # if marital_status <= 0:
+                #     continue
                 ts_lines = tsfile.readlines()
                 header = ts_lines[0]
                 ts_lines = ts_lines[1:]
@@ -91,7 +91,7 @@ def process_partition(args, partition, eps=1e-6, n_hours=48):
                         outfile.write(line)
 
                 # TODO: add sensitive information here
-                xy_pairs.append((output_ts_filename, icustay, readmission_30d, insurance, race, gender, age, marital_status))
+                xy_pairs.append((output_ts_filename, icustay, readmission_30d))
 
 
     print("Number of created samples:", len(xy_pairs))
@@ -101,9 +101,9 @@ def process_partition(args, partition, eps=1e-6, n_hours=48):
         xy_pairs = sorted(xy_pairs)
 
     with open(os.path.join(output_dir, "listfile.csv"), "w") as listfile:
-        listfile.write('stay,stay_id,y_true,insurance,race,gender,age,marital_status\n')
-        for (x, s, y, i, r, g, a, m) in xy_pairs:
-            listfile.write('{},{},{:d},{:d},{:d},{:d},{:d},{:d}\n'.format(x, s, y, i, r, g, a, m))
+        listfile.write('stay,stay_id,y_true\n')
+        for (x, s, y) in xy_pairs:
+            listfile.write('{},{},{:d}\n'.format(x, s, y))
 
 
 def main():

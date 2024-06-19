@@ -1,3 +1,6 @@
+from __future__ import absolute_import
+from __future__ import print_function
+
 import os
 import argparse
 import numpy as np
@@ -27,6 +30,7 @@ def process_partition(args, partition, sample_rate=1.0, shortest_length=4.0, eps
                 if label_df.shape[0] == 0:
                     print("\n\t(empty label file)", patient, ts_filename)
                     continue
+                icustay = label_df['Icustay'].iloc[0]
 
                 los = 24.0 * label_df.iloc[0]['Length of Stay']  # in hours
                 if pd.isnull(los):
@@ -62,7 +66,7 @@ def process_partition(args, partition, sample_rate=1.0, shortest_length=4.0, eps
                         outfile.write(line)
 
                 for t in sample_times:
-                    xty_triples.append((output_ts_filename, t, los - t))
+                    xty_triples.append((output_ts_filename, t, icustay, los - t))
 
     print("Number of created samples:", len(xty_triples))
     if partition == "train":
@@ -71,9 +75,9 @@ def process_partition(args, partition, sample_rate=1.0, shortest_length=4.0, eps
         xty_triples = sorted(xty_triples)
 
     with open(os.path.join(output_dir, "listfile.csv"), "w") as listfile:
-        listfile.write('stay,period_length,y_true\n')
-        for (x, t, y) in xty_triples:
-            listfile.write('{},{:.6f},{:.6f}\n'.format(x, t, y))
+        listfile.write('stay,period_length,stay_id,y_true\n')
+        for (x, t, icustay, y) in xty_triples:
+            listfile.write('{},{:.6f},{},{:.6f}\n'.format(x, t, icustay, y))
 
 
 def main():

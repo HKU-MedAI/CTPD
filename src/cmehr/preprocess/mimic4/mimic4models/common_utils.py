@@ -6,7 +6,7 @@ import os
 import json
 import random
 
-from cmehr.preprocess.mimic4.mimic4models.feature_extractor import extract_features
+from .feature_extractor import extract_features
 
 
 def convert_to_dict(data, header, channel_info):

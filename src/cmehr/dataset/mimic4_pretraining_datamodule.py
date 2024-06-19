@@ -191,6 +191,7 @@ class MIMIC4MultimodalDataModule(LightningDataModule):
                                 batch_size=self.batch_size,
                                 num_workers=self.num_workers,
                                 shuffle=True,
+                                drop_last=True,
                                 collate_fn=custom_collate_fn)
         return dataloader
 
@@ -206,6 +207,7 @@ class MIMIC4MultimodalDataModule(LightningDataModule):
                                 batch_size=self.batch_size,
                                 num_workers=self.num_workers,
                                 shuffle=False,
+                                drop_last=True,
                                 collate_fn=custom_collate_fn)
         return dataloader
 
@@ -221,6 +223,7 @@ class MIMIC4MultimodalDataModule(LightningDataModule):
                                 batch_size=self.batch_size,
                                 num_workers=self.num_workers,
                                 shuffle=False,
+                                drop_last=True,
                                 collate_fn=custom_collate_fn)
         return dataloader
     

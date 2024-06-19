@@ -1,6 +1,5 @@
 '''
 This script is used for self-supervised pretraining on multimodal MIMIC4 dataset.
-# 
 '''
 from argparse import ArgumentParser
 from datetime import datetime
@@ -30,7 +29,7 @@ parser.add_argument("--devices", type=int, default=1)
 parser.add_argument("--max_length", type=int, default=1024)
 parser.add_argument("--accumulate_grad_batches", type=int, default=1)
 parser.add_argument("--first_nrows", type=int, default=-1)
-parser.add_argument("--ts_learning_rate", type=float, default=2e-4)
+parser.add_argument("--ts_learning_rate", type=float, default=5e-4)
 parser.add_argument("--seed", type=int, default=42)
 parser.add_argument("--period_length", type=int, default=100)
 args = parser.parse_args()
@@ -40,9 +39,11 @@ def cli_main():
     seed_everything(args.seed)
 
     # This is fixed for MIMIC4
-    args.orig_d_ts = 25
-    args.orig_reg_d_ts = 50
-
+    # args.orig_d_ts = 25
+    # args.orig_reg_d_ts = 50
+    args.orig_d_ts = 15
+    args.orig_reg_d_ts = 30
+    
     # define datamodule
     if args.first_nrows == -1:
         args.first_nrows = None

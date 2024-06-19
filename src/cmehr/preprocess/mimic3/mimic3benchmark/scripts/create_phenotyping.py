@@ -1,10 +1,10 @@
+from tqdm import tqdm
 import os
 import argparse
 import pandas as pd
 import yaml
 import random
 random.seed(49297)
-from tqdm import tqdm
 
 
 def process_partition(args, definitions, code_to_group, id_to_group, group_to_id,
@@ -14,15 +14,18 @@ def process_partition(args, definitions, code_to_group, id_to_group, group_to_id
         os.mkdir(output_dir)
 
     xty_triples = []
-    patients = list(filter(str.isdigit, os.listdir(os.path.join(args.root_path, partition))))
+    patients = list(filter(str.isdigit, os.listdir(
+        os.path.join(args.root_path, partition))))
     for patient in tqdm(patients, desc='Iterating over patients in {}'.format(partition)):
         patient_folder = os.path.join(args.root_path, partition, patient)
-        patient_ts_files = list(filter(lambda x: x.find("timeseries") != -1, os.listdir(patient_folder)))
+        patient_ts_files = list(filter(lambda x: x.find(
+            "timeseries") != -1, os.listdir(patient_folder)))
 
         for ts_filename in patient_ts_files:
             with open(os.path.join(patient_folder, ts_filename)) as tsfile:
                 lb_filename = ts_filename.replace("_timeseries", "")
-                label_df = pd.read_csv(os.path.join(patient_folder, lb_filename))
+                label_df = pd.read_csv(
+                    os.path.join(patient_folder, lb_filename))
 
                 # empty label file
                 if label_df.shape[0] == 0:
@@ -30,7 +33,8 @@ def process_partition(args, definitions, code_to_group, id_to_group, group_to_id
 
                 los = 24.0 * label_df.iloc[0]['Length of Stay']  # in hours
                 if pd.isnull(los):
-                    print("\n\t(length of stay is missing)", patient, ts_filename)
+                    print("\n\t(length of stay is missing)",
+                          patient, ts_filename)
                     continue
 
                 ts_lines = tsfile.readlines()
@@ -88,11 +92,15 @@ def process_partition(args, definitions, code_to_group, id_to_group, group_to_id
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Create data for phenotype classification task.")
-    parser.add_argument('root_path', type=str, help="Path to root folder containing train and test sets.")
-    parser.add_argument('output_path', type=str, help="Directory where the created data should be stored.")
+    parser = argparse.ArgumentParser(
+        description="Create data for phenotype classification task.")
+    parser.add_argument('root_path', type=str,
+                        help="Path to root folder containing train and test sets.")
+    parser.add_argument('output_path', type=str,
+                        help="Directory where the created data should be stored.")
     parser.add_argument('--phenotype_definitions', '-p', type=str,
-                        default=os.path.join(os.path.dirname(__file__), '../resources/hcup_ccs_2015_definitions.yaml'),
+                        default=os.path.join(os.path.dirname(
+                            __file__), '../resources/hcup_ccs_2015_definitions.yaml'),
                         help='YAML file with phenotype definitions.')
     args, _ = parser.parse_known_args()
 
@@ -114,8 +122,10 @@ def main():
     if not os.path.exists(args.output_path):
         os.makedirs(args.output_path)
 
-    process_partition(args, definitions, code_to_group, id_to_group, group_to_id, "test")
-    process_partition(args, definitions, code_to_group, id_to_group, group_to_id, "train")
+    process_partition(args, definitions, code_to_group,
+                      id_to_group, group_to_id, "test")
+    process_partition(args, definitions, code_to_group,
+                      id_to_group, group_to_id, "train")
 
 
 if __name__ == '__main__':

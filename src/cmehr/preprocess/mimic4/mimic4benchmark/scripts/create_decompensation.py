@@ -1,7 +1,11 @@
+from __future__ import absolute_import
+from __future__ import print_function
+
 import os
 import argparse
 import numpy as np
 import pandas as pd
+from datetime import datetime
 import random
 random.seed(49297)
 from tqdm import tqdm
@@ -36,15 +40,20 @@ def process_partition(args, partition, sample_rate=1.0, shortest_length=4.0,
                 if pd.isnull(los):
                     print("(length of stay is missing)", patient, ts_filename)
                     continue
-
+                
+                # import pdb; pdb.set_trace()
+                
                 stay = stays_df[stays_df.stay_id == label_df.iloc[0]['Icustay']]
-                deathtime = pd.to_datetime(stay['deathtime'].iloc[0])
-                intime = pd.to_datetime(stay['intime'].iloc[0])
+                
+                icustay = label_df['Icustay'].iloc[0]
+
+                deathtime = stay['deathtime'].iloc[0]
+                intime = stay['intime'].iloc[0]
                 if pd.isnull(deathtime):
                     lived_time = 1e18
                 else:
-                    # conversion to pydatetime is needed to avoid overflow issues when subtracting
-                    lived_time = (deathtime.to_pydatetime() - intime.to_pydatetime()).total_seconds() / 3600.0
+                    lived_time = (datetime.strptime(deathtime, "%Y-%m-%d %H:%M:%S") -
+                                  datetime.strptime(intime, "%Y-%m-%d %H:%M:%S")).total_seconds() / 3600.0
 
                 ts_lines = tsfile.readlines()
                 header = ts_lines[0]
@@ -79,7 +88,7 @@ def process_partition(args, partition, sample_rate=1.0, shortest_length=4.0,
                         cur_mortality = 0
                     else:
                         cur_mortality = int(lived_time - t < future_time_interval)
-                    xty_triples.append((output_ts_filename, t, cur_mortality))
+                    xty_triples.append((output_ts_filename, t, icustay, cur_mortality))
 
     print("Number of created samples:", len(xty_triples))
     if partition == "train":
@@ -88,9 +97,9 @@ def process_partition(args, partition, sample_rate=1.0, shortest_length=4.0,
         xty_triples = sorted(xty_triples)
 
     with open(os.path.join(output_dir, "listfile.csv"), "w") as listfile:
-        listfile.write('stay,period_length,y_true\n')
-        for (x, t, y) in xty_triples:
-            listfile.write('{},{:.6f},{:d}\n'.format(x, t, y))
+        listfile.write('stay,period_length,stay_id,y_true\n')
+        for (x, t, icustay, y) in xty_triples:
+            listfile.write('{},{:.6f},{},{:d}\n'.format(x, t, icustay, y))
 
 
 def main():

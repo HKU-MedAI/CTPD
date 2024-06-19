@@ -86,17 +86,15 @@ if __name__ == "__main__":
     from torch.utils.data import DataLoader
     from cmehr.paths import *
     # from cmehr.dataset.mimic4_datamodule import MIMIC4DataModule
-    from cmehr.dataset.mimic4_pretraining_datamodule import MIMIC4DataModule
+    # from cmehr.dataset.mimic4_pretraining_datamodule import MIMIC4DataModule
+    from cmehr.dataset.mimic4_downstream_datamodule import MIMIC4DataModule
 
     datamodule = MIMIC4DataModule(
         file_path=str(ROOT_PATH / "output_mimic4/TS_CXR/ihm"),
-        tt_max=48
+        period_length=48
     )
-    batch = dict()
     for batch in datamodule.val_dataloader():
         break
-    for k, v in batch.items():
-        print(f"{k}: ", v.shape)
     """
     ts: torch.Size([4, 157, 17])
     ts_mask:  torch.Size([4, 157, 17])

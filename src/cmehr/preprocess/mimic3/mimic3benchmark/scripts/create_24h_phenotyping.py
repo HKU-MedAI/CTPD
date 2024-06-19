@@ -36,20 +36,8 @@ def process_partition(args, definitions, code_to_group, id_to_group, group_to_id
                     print("\n\t(length of stay is missing)",
                           patient, ts_filename)
                     continue
+
                 if los < n_hours - eps:
-                    continue
-                insurance = int(label_df.iloc[0]['Insurance'])
-                if insurance <= 0:
-                    continue
-                race = int(label_df.iloc[0]['Ethnicity'])
-                if race == 0:
-                    continue
-                gender = int(label_df.iloc[0]['Gender'])
-                if gender == 0:
-                    continue
-                age = 1 if int(label_df.iloc[0]['Age']) >= 75 else 0
-                marital_status = int(label_df.iloc[0]['Marital_Status'])
-                if marital_status <= 0:
                     continue
 
                 ts_lines = tsfile.readlines()
@@ -89,7 +77,7 @@ def process_partition(args, definitions, code_to_group, id_to_group, group_to_id
                 cur_labels = [x for (i, x) in enumerate(cur_labels)
                               if definitions[id_to_group[i]]['use_in_benchmark']]
 
-                xty_triples.append((output_ts_filename, n_hours, cur_labels, insurance, race, gender, age, marital_status))
+                xty_triples.append((output_ts_filename, n_hours, cur_labels))
 
     print("Number of created samples:", len(xty_triples))
     if partition == "train":
@@ -102,10 +90,10 @@ def process_partition(args, definitions, code_to_group, id_to_group, group_to_id
 
     listfile_header = "stay,period_length," + ",".join(codes_in_benchmark)
     with open(os.path.join(output_dir, "listfile.csv"), "w") as listfile:
-        listfile.write(listfile_header + ",insurance,race,gender,age,marital_status\n")
-        for (x, t, y, i, r, g, a, m) in xty_triples:
+        listfile.write(listfile_header + "\n")
+        for (x, t, y) in xty_triples:
             labels = ','.join(map(str, y))
-            listfile.write('{},{:.6f},{},{:d},{:d},{:d},{:d},{:d}\n'.format(x, t, labels, i, r, g, a, m))
+            listfile.write('{},{:.6f},{}\n'.format(x, t, labels))
 
 
 def main():
@@ -115,17 +103,10 @@ def main():
     '''
     parser = argparse.ArgumentParser(
         description="Create data for phenotype classification task.")
-    # parser.add_argument('root_path', type=str,
-    #                     help="Path to root folder containing train and test sets.")
-    # parser.add_argument('output_path', type=str,
-    #                     help="Directory where the created data should be stored.")
-    parser.add_argument('--root_path', type=str, 
-                        default=os.path.join(os.path.dirname(__file__), '../../data/root/'),
+    parser.add_argument('root_path', type=str,
                         help="Path to root folder containing train and test sets.")
-    parser.add_argument('--output_path', type=str, 
-                        default=os.path.join(os.path.dirname(__file__), '../../data/pheno/'),
+    parser.add_argument('output_path', type=str,
                         help="Directory where the created data should be stored.")
-    args, _ = parser.parse_known_args()
     parser.add_argument('--phenotype_definitions', '-p', type=str,
                         default=os.path.join(os.path.dirname(
                             __file__), '../resources/hcup_ccs_2015_definitions.yaml'),

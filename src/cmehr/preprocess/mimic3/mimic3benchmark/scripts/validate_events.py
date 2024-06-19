@@ -19,8 +19,7 @@ def main():
     icustay_missing_in_stays = 0   # ICUSTAY_ID does not appear in stays.csv. We exclude such events.
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('--subjects_root_path', type=str,
-                        default=os.path.join(os.path.dirname(__file__), '../../data/root/'),
+    parser.add_argument('subjects_root_path', type=str,
                         help='Directory containing subject subdirectories.')
     args = parser.parse_args()
     print(args)

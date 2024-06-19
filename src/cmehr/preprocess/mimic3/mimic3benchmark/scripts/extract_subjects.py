@@ -1,19 +1,13 @@
 import argparse
 import yaml
-import os
-# FIXME: update import path
-from cmehr.preprocess.mimic3.mimic3benchmark.mimic3csv import *
-from cmehr.preprocess.mimic3.mimic3benchmark.preprocessing import add_hcup_ccs_2015_groups, make_phenotype_label_matrix
-from cmehr.preprocess.mimic3.mimic3benchmark.util import dataframe_from_csv
 
+from mimic3benchmark.mimic3csv import *
+from mimic3benchmark.preprocessing import add_hcup_ccs_2015_groups, make_phenotype_label_matrix
+from mimic3benchmark.util import dataframe_from_csv
 
 parser = argparse.ArgumentParser(description='Extract per-subject data from MIMIC-III CSV files.')
-parser.add_argument('--mimic3_path', type=str, 
-                    default='/home/fwu/Documents/Datasets/physionet.org/files/mimiciii/1.4/tables',
-                    help='Directory containing MIMIC-III CSV files.')
-parser.add_argument('--output_path', type=str, 
-                    default=os.path.join(os.path.dirname(__file__), '../../data/root'),
-                    help='Directory where per-subject data should be written.')
+parser.add_argument('mimic3_path', type=str, help='Directory containing MIMIC-III CSV files.')
+parser.add_argument('output_path', type=str, help='Directory where per-subject data should be written.')
 parser.add_argument('--event_tables', '-e', type=str, nargs='+', help='Tables from which to read events.',
                     default=['CHARTEVENTS', 'LABEVENTS', 'OUTPUTEVENTS'])
 parser.add_argument('--phenotype_definitions', '-p', type=str,
@@ -53,7 +47,6 @@ if args.verbose:
 stays = add_age_to_icustays(stays)
 stays = add_inunit_mortality_to_icustays(stays)
 stays = add_inhospital_mortality_to_icustays(stays)
-#TODO:why remove age < 18?
 stays = filter_icustays_on_age(stays)
 if args.verbose:
     print('REMOVE PATIENTS AGE < 18:\n\tICUSTAY_IDs: {}\n\tHADM_IDs: {}\n\tSUBJECT_IDs: {}'.format(stays.ICUSTAY_ID.unique().shape[0],

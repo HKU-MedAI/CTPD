@@ -5,8 +5,8 @@ import os
 import torch
 from lightning import seed_everything
 from torch.utils.data import DataLoader
-# from cmehr.dataset.mimic4_downstream_datamodule import MIMIC4DataModule
 from cmehr.utils.file_utils import save_pkl, load_pkl
+from cmehr.utils.evaluation_utils import eval_svm, eval_linear
 from cmehr.paths import *
 import ipdb
 
@@ -20,6 +20,8 @@ torch.set_float32_matmul_precision("high")
 
 parser = argparse.ArgumentParser(description="Evaluate MIMIC IV")
 parser.add_argument("--task", type=str, default="ihm")
+parser.add_argument("--eval_method", type=str, default="svm",
+                    choices=["svm", "linear", "mlp"])
 parser.add_argument("--batch_size", type=int, default=48)
 parser.add_argument("--num_workers", type=int, default=4)
 parser.add_argument("--seed", type=int, default=42)
@@ -85,6 +87,14 @@ def cli_main():
         "test_Y": test_Y.cpu().numpy()
     }
     save_pkl(os.path.join(args.emb_dir, f"{args.task}_ts_proto_embs.pkl"), embeddings)
+
+    print(f"Evaluation method: {args.eval_method}")
+    if args.eval_method == "svm":
+        eval_svm(train_X, train_Y, test_X, test_Y)
+    elif args.eval_method in ["linear", "mlp"]:
+        eval_linear(train_X, train_Y, val_X, val_Y, test_X, test_Y,
+                    batch_size=args.batch_size, task=args.task, 
+                    eval_method=args.eval_method)
 
 
 if __name__ == "__main__":

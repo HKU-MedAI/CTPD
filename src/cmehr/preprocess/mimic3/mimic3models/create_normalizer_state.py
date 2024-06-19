@@ -1,5 +1,9 @@
-from dataset.mimic3.mimic3benchmark.readers import InHospitalMortalityReader, DecompensationReader, LengthOfStayReader, PhenotypingReader, ReadmissionReader, MultitaskReader
-from dataset.mimic3.mimic3_model.preprocessing import Discretizer, Normalizer
+from mimic3benchmark.readers import InHospitalMortalityReader
+from mimic3benchmark.readers import DecompensationReader
+from mimic3benchmark.readers import LengthOfStayReader
+from mimic3benchmark.readers import PhenotypingReader
+from mimic3benchmark.readers import MultitaskReader
+from mimic3models.preprocessing import Discretizer, Normalizer
 
 import os
 import argparse
@@ -10,14 +14,14 @@ def main():
                                                  'means and standard deviations of columns of the output of a '
                                                  'discretizer, which are later used to standardize the input of '
                                                  'neural models.')
-    parser.add_argument('--task', type=str, default='pheno',
-                        choices=['ihm', 'readm', 'pheno', 'decomp', 'los', 'multi'])
+    parser.add_argument('--task', type=str, required=True,
+                        choices=['ihm', 'decomp', 'los', 'pheno', 'multi'])
     parser.add_argument('--timestep', type=float, default=1.0,
                         help="Rate of the re-sampling to discretize time-series.")
-    parser.add_argument('--impute_strategy', type=str, default='zero',
+    parser.add_argument('--impute_strategy', type=str, default='previous',
                         choices=['zero', 'next', 'previous', 'normal_value'],
                         help='Strategy for imputing missing values.')
-    parser.add_argument('--start_time', type=str, default='zero', choices=['zero', 'relative'],
+    parser.add_argument('--start_time', type=str, choices=['zero', 'relative'],
                         help='Specifies the start time of discretization. Zero means to use the beginning of '
                              'the ICU stay. Relative means to use the time of the first ICU event')
     parser.add_argument('--store_masks', dest='store_masks', action='store_true',
@@ -27,10 +31,8 @@ def main():
     parser.add_argument('--n_samples', type=int, default=-1, help='How many samples to use to estimates means and '
                         'standard deviations. Set -1 to use all training samples.')
     parser.add_argument('--output_dir', type=str, help='Directory where the output file will be saved.',
-                        default=os.path.dirname(__file__))
-    parser.add_argument('--data', type=str, 
-                        default=os.path.join(os.path.dirname(__file__), '../data/'),
-                        help='Path to the task data.')
+                        default='.')
+    parser.add_argument('--data', type=str, required=True, help='Path to the task data.')
     parser.set_defaults(store_masks=True)
 
     args = parser.parse_args()
@@ -38,7 +40,6 @@ def main():
 
     # create the reader
     reader = None
-    args.data = os.path.join(args.data, args.task)
     dataset_dir = os.path.join(args.data, 'train')
     if args.task == 'ihm':
         reader = InHospitalMortalityReader(dataset_dir=dataset_dir, period_length=48.0)
@@ -50,8 +51,6 @@ def main():
         reader = PhenotypingReader(dataset_dir=dataset_dir)
     if args.task == 'multi':
         reader = MultitaskReader(dataset_dir=dataset_dir)
-    if args.task == 'readm':
-        reader = ReadmissionReader(dataset_dir=dataset_dir, period_length=48.0)
 
     # create the discretizer
     discretizer = Discretizer(timestep=args.timestep,
@@ -78,12 +77,9 @@ def main():
     print('\n')
 
     # all dashes (-) were colons(:)
-    output_dir = os.path.join(args.output_dir, args.task)
-    if not os.path.exists(output_dir):
-        os.makedirs(output_dir)
     file_name = '{}_ts-{:.2f}_impute-{}_start-{}_masks-{}_n-{}.normalizer'.format(
         args.task, args.timestep, args.impute_strategy, args.start_time, args.store_masks, n_samples)
-    file_name = os.path.join(output_dir, file_name)
+    file_name = os.path.join(args.output_dir, file_name)
     print('Saving the state in {} ...'.format(file_name))
     normalizer._save_params(file_name)
 

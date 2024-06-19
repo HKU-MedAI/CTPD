@@ -420,9 +420,7 @@ class MTANDModule(MIMIC4LightningModule):
                  dropout: float = 0.1,
                  irregular_learn_emb_ts: bool = True,
                  reg_ts: bool = True,
-                 TS_mixup: bool = True,
-                 mixup_level: str = "batch",
-                 pooling_type: str = "attention",
+                 pooling_type: str = "mean",
                  lamb: float = 1.,
                  embed_time: int = 64,
                  embed_dim: int = 128,
@@ -439,8 +437,6 @@ class MTANDModule(MIMIC4LightningModule):
         self.dropout = dropout
         self.irregular_learn_emb_ts = irregular_learn_emb_ts
         self.reg_ts = reg_ts
-        self.TS_mixup = TS_mixup
-        self.mixup_level = mixup_level
         self.task = task
         self.tt_max = period_length
         self.orig_d_ts = orig_d_ts
@@ -504,18 +500,18 @@ class MTANDModule(MIMIC4LightningModule):
 
         return proj_x_ts_irg
 
-    def forward_ts_reg(self, reg_ts: torch.Tensor):
-        '''
-        Forward irregular time series using Imputation.
-        '''
-        # convolution over regular time series
+    # def forward_ts_reg(self, reg_ts: torch.Tensor):
+    #     '''
+    #     Forward irregular time series using Imputation.
+    #     '''
+    #     # convolution over regular time series
 
-        x_ts_reg = reg_ts.transpose(1, 2)
-        proj_x_ts_reg = x_ts_reg if self.orig_reg_d_ts == self.d_ts else self.proj_ts(
-            x_ts_reg)
-        proj_x_ts_reg = proj_x_ts_reg.permute(2, 0, 1)
+    #     x_ts_reg = reg_ts.transpose(1, 2)
+    #     proj_x_ts_reg = x_ts_reg if self.orig_reg_d_ts == self.d_ts else self.proj_ts(
+    #         x_ts_reg)
+    #     proj_x_ts_reg = proj_x_ts_reg.permute(2, 0, 1)
 
-        return proj_x_ts_reg
+    #     return proj_x_ts_reg
 
     # def gate_ts(self,
     #             proj_x_ts_irg: torch.Tensor,
