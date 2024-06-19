@@ -26,7 +26,7 @@ class PrototypeTokenizer(nn.Module):
         n_samples = X.shape[0]
         if self.model_type == 'OT':
             if self.out_type == 'allcat':
-                prob = 1 / self.p * torch.ones((n_samples, self.p))
+                prob = 1 / self.p * torch.ones((n_samples, self.p)).type_as(X)
                 mean = X.reshape(n_samples, self.p, -1)
                 cov = None
             else:

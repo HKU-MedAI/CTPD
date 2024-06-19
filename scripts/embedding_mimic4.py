@@ -1,5 +1,5 @@
 import torch
-from cmehr.models.common.model_PANTHER import PANTHER
+from cmehr.models.common.model_PANTHER import PANTHER, PrototypeTokenizer
 import argparse
 import os
 import torch
@@ -27,32 +27,20 @@ parser.add_argument("--num_workers", type=int, default=4)
 parser.add_argument("--seed", type=int, default=42)
 parser.add_argument("--emb_dir", type=str,
                     default=str(ROOT_PATH / "prototype_results/mimic4_pretrain"))
-parser.add_argument("--proto_path", type=str, 
-                    default=str(ROOT_PATH / "prototype_results/mimic4_pretrain/train_proto_50.pkl"))
+parser.add_argument("--ts_proto_path", type=str, 
+                    default=str(ROOT_PATH / "prototype_results/mimic4_pretrain/ts_proto_16.pkl"))
+parser.add_argument("--cxr_proto_path", type=str, 
+                    default=str(ROOT_PATH / "prototype_results/mimic4_pretrain/ts_proto_16.pkl"))
 args = parser.parse_args()
 
 
-def cli_main():
-    seed_everything(args.seed)
-    
-    if args.task in ["ihm", "readm"]:
-        period_length = 48
-    else:
-        period_length = 24
+def save_agg_embs(train_emb, train_label, val_emb, val_label, test_emb, test_label, 
+                  model, proto_emb_path):
 
-    model = PANTHER(proto_path=args.proto_path).to(device)
-    data_dict = load_pkl(os.path.join(args.emb_dir, f"{args.task}_embs.pkl"))
-    train_ts_emb = data_dict["train_ts_embs"][:, :period_length]
-    train_label = data_dict["train_label"]
-    val_ts_emb = data_dict["val_ts_embs"][:, :period_length]
-    val_label = data_dict["val_label"]
-    test_ts_emb = data_dict["test_ts_embs"][:, :period_length]
-    test_label = data_dict["test_label"]
-    
     # For training set 
     train_loader = DataLoader(
-        # train_ts_emb,
-        list(zip(train_ts_emb, train_label)),
+        # train_emb,
+        list(zip(train_emb, train_label)),
         batch_size=args.batch_size, 
         num_workers=args.num_workers,
         drop_last=False,
@@ -60,8 +48,8 @@ def cli_main():
     train_X, train_Y = model.predict(train_loader, use_cuda=torch.cuda.is_available())
 
     val_loader = DataLoader(
-        # val_ts_emb,
-        list(zip(val_ts_emb, val_label)),
+        # val_emb,
+        list(zip(val_emb, val_label)),
         batch_size=args.batch_size, 
         num_workers=args.num_workers,
         drop_last=False,
@@ -70,8 +58,8 @@ def cli_main():
 
     # For test set
     test_loader = DataLoader(
-        # test_ts_emb,
-        list(zip(test_ts_emb, test_label)),
+        # test_emb,
+        list(zip(test_emb, test_label)),
         batch_size=args.batch_size, 
         num_workers=args.num_workers,
         drop_last=False,
@@ -86,15 +74,74 @@ def cli_main():
         "test_X": test_X.cpu().numpy(),
         "test_Y": test_Y.cpu().numpy()
     }
-    save_pkl(os.path.join(args.emb_dir, f"{args.task}_ts_proto_embs.pkl"), embeddings)
+    save_pkl(proto_emb_path, embeddings)
 
+
+def evaluate_reps(args, train_X, train_Y, val_X, val_Y, test_X, test_Y, n_proto=16):
     print(f"Evaluation method: {args.eval_method}")
     if args.eval_method == "svm":
         eval_svm(train_X, train_Y, test_X, test_Y)
     elif args.eval_method in ["linear", "mlp"]:
+        if args.eval_method == "mlp":
+            tokenizer = PrototypeTokenizer(p=n_proto)
+            prob, mean, cov = tokenizer(train_X)
+            train_X = torch.cat([torch.Tensor(prob).unsqueeze(dim=-1), torch.Tensor(mean), torch.Tensor(cov)], dim=-1)
+            prob, mean, cov = tokenizer(val_X)
+            val_X = torch.cat([torch.Tensor(prob).unsqueeze(dim=-1), torch.Tensor(mean), torch.Tensor(cov)], dim=-1)
+            prob, mean, cov = tokenizer(test_X)
+            test_X = torch.cat([torch.Tensor(prob).unsqueeze(dim=-1), torch.Tensor(mean), torch.Tensor(cov)], dim=-1)
+
         eval_linear(train_X, train_Y, val_X, val_Y, test_X, test_Y,
-                    batch_size=args.batch_size, task=args.task, 
+                    n_proto=n_proto, batch_size=args.batch_size, task=args.task, 
                     eval_method=args.eval_method)
+
+def cli_main():
+    seed_everything(args.seed)
+    
+    if args.task in ["ihm", "readm"]:
+        period_length = 48
+    else:
+        period_length = 24
+
+    data_dict = load_pkl(os.path.join(args.emb_dir, f"{args.task}_embs.pkl"))
+
+    # For TS data
+    n_proto = int(args.ts_proto_path.split("/")[-1].replace(".pkl", "").split("_")[-1])
+    model = PANTHER(proto_path=args.ts_proto_path, out_size=n_proto).to(device)
+    proto_emb_path = os.path.join(args.emb_dir, f"{args.task}_ts_proto_{n_proto}_embs.pkl")
+    if not os.path.exists(proto_emb_path):
+        save_agg_embs(data_dict["train_ts_embs"], data_dict["train_label"], 
+                      data_dict["val_ts_embs"], data_dict["val_label"], 
+                      data_dict["test_ts_embs"], data_dict["test_label"], 
+                      model, proto_emb_path)
+
+    loaded_data = load_pkl(proto_emb_path)
+    train_X = loaded_data["train_X"]
+    train_Y = loaded_data["train_Y"]
+    val_X = loaded_data["val_X"]
+    val_Y = loaded_data["val_Y"]
+    test_X = loaded_data["test_X"]
+    test_Y = loaded_data["test_Y"]
+    evaluate_reps(args, train_X, train_Y, val_X, val_Y, test_X, test_Y, n_proto=n_proto)
+
+    # For CXR data
+    n_proto = int(args.cxr_proto_path.split("/")[-1].replace(".pkl", "").split("_")[-1])
+    model = PANTHER(proto_path=args.cxr_proto_path, out_size=n_proto).to(device)
+    proto_emb_path = os.path.join(args.emb_dir, f"{args.task}_cxr_proto_{n_proto}_embs.pkl")
+    if not os.path.exists(proto_emb_path):
+        save_agg_embs(data_dict["train_cxr_embs"], data_dict["train_label"], 
+                      data_dict["val_cxr_embs"], data_dict["val_label"], 
+                      data_dict["test_cxr_embs"], data_dict["test_label"], 
+                      model, proto_emb_path)
+
+    loaded_data = load_pkl(proto_emb_path)
+    train_X = loaded_data["train_X"]
+    train_Y = loaded_data["train_Y"]
+    val_X = loaded_data["val_X"]
+    val_Y = loaded_data["val_Y"]
+    test_X = loaded_data["test_X"]
+    test_Y = loaded_data["test_Y"]
+    evaluate_reps(args, train_X, train_Y, val_X, val_Y, test_X, test_Y, n_proto=n_proto)
 
 
 if __name__ == "__main__":

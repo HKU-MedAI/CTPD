@@ -162,11 +162,21 @@ def cli_main():
     # Evaluate the performance of the extracted embeddings
     data_dict = load_pkl(os.path.join(args.save_feat_dir, "ihm_embs.pkl"))
     # use the first 48 time steps
+    print("Evaluate TS embs: ")
     train_X = np.mean(data_dict["train_ts_embs"], axis=1)
     train_Y = data_dict["train_label"]
     val_X = np.mean(data_dict["val_ts_embs"], axis=1)
     val_Y = data_dict["val_label"]
     test_X = np.mean(data_dict["test_ts_embs"], axis=1)
+    test_Y = data_dict["test_label"]
+    eval_svm(train_X, train_Y, test_X, test_Y)
+
+    print("Evaluate CXR embs: ")
+    train_X = np.mean(data_dict["train_cxr_embs"], axis=1)
+    train_Y = data_dict["train_label"]
+    val_X = np.mean(data_dict["val_cxr_embs"], axis=1)
+    val_Y = data_dict["val_label"]
+    test_X = np.mean(data_dict["test_cxr_embs"], axis=1)
     test_Y = data_dict["test_label"]
     eval_svm(train_X, train_Y, test_X, test_Y)
 

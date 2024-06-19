@@ -19,11 +19,20 @@ BTW, this script can also be used to evaluate the performance of self-supervised
 3. Cluster learned representations into clusters. 
 
 ```bash
-python create_prototypes.py
+python create_prototypes.py --n_proto 16
 ```
 
 4. Learn prototype-aggregated representations.
 
+It seems that svm achieves the best evaluation performance.
 ```bash
-CUDA_VISIBLE_DEVICES=0 python embedding_mimic4.py
+CUDA_VISIBLE_DEVICES=0 python embedding_mimic4.py --eval_method svm \
+--ts_proto_path /home/fywang/Documents/EHR_codebase/MMMSPG/prototype_results/mimic4_pretrain/ts_proto_16.pkl \
+--cxr_proto_path /home/fywang/Documents/EHR_codebase/MMMSPG/prototype_results/mimic4_pretrain/ts_proto_16.pkl
+```
+
+5. Multimodal fusion 
+
+```bash
+CUDA_VISIBLE_DEVICES=0 python evaluate_multimodal.py
 ```

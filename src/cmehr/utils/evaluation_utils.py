@@ -1,7 +1,9 @@
 '''
 Utility functions used for evaluation.
 '''
-from sklearn.svm import LinearSVC
+import ipdb
+import torch
+from torch.utils.data import Dataset
 from datetime import datetime
 from sklearn.svm import LinearSVC
 import sklearn.metrics as metrics
@@ -23,16 +25,28 @@ def eval_svm(train_X, train_y, test_X, test_y):
     print(f"AUROC: {auroc}, AUPRC: {auprc}, F1: {f1}")
 
 
+class CustomDataset(Dataset):
+    def __init__(self, X, y):
+        self.X = X
+        self.y = y
+
+    def __len__(self):
+        return len(self.X) 
+
+    def __getitem__(self, idx):
+        return self.X[idx], self.y[idx]
+
+
 def eval_linear(train_X, train_y, val_X, val_y, test_X, test_y,
-                batch_size=128, task="ihm", eval_method="linear"):
-    train_loader = DataLoader(list(zip(train_X, train_y)), batch_size=batch_size, 
+                n_proto=50, batch_size=128, task="ihm", eval_method="linear"):
+    train_loader = DataLoader(CustomDataset(train_X, train_y), batch_size=batch_size, 
                               num_workers=4, shuffle=True)
-    val_loader = DataLoader(list(zip(val_X, val_y)), batch_size=batch_size, 
+    val_loader = DataLoader(CustomDataset(val_X, val_y), batch_size=batch_size, 
                             num_workers=4, shuffle=False)
-    test_loader = DataLoader(list(zip(test_X, test_y)), batch_size=batch_size, 
+    test_loader = DataLoader(CustomDataset(test_X, test_y), batch_size=batch_size, 
                              num_workers=4, shuffle=False)
 
-    model = LinearFinetuner(in_size=train_X.shape[1], num_classes=2, 
+    model = LinearFinetuner(in_size=train_X.shape[1], num_classes=2, n_proto=n_proto,
                             model_type=eval_method)
     run_name = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
     run_name = f"mimic4_{task}_{eval_method}_{run_name}"
