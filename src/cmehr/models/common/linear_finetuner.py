@@ -198,8 +198,11 @@ class LinearFinetuner(LightningModule):
     def configure_optimizers(self):
         optimizer = torch.optim.Adam(
             self.parameters(), lr=self.hparams.lr)
-        lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
-            optimizer, factor=0.4, patience=3, verbose=True, mode='max')
+        lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
+            optimizer, T_max=100, eta_min=1e-8
+        )
+        # lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
+        #     optimizer, factor=0.4, patience=3, verbose=True, mode='max')
         scheduler = {
             'scheduler': lr_scheduler,
             'monitor': 'val_auroc',

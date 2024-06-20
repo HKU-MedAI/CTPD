@@ -18,11 +18,11 @@ torch.backends.cudnn.benchmark = True  # type: ignore
 torch.set_float32_matmul_precision("high")
 
 '''
-CUDA_VISIBLE_DEVICES=2,3 python pretrain_mimic4.py --devices 2
+CUDA_VISIBLE_DEVICES=1,3 python pretrain_mimic4.py --devices 2
 '''
 
 parser = ArgumentParser(description="Self-supervised pretraining for MIMIC IV")
-parser.add_argument("--batch_size", type=int, default=16)
+parser.add_argument("--batch_size", type=int, default=12)
 parser.add_argument("--num_workers", type=int, default=4)
 parser.add_argument("--max_epochs", type=int, default=100)
 parser.add_argument("--devices", type=int, default=1)
@@ -31,7 +31,7 @@ parser.add_argument("--accumulate_grad_batches", type=int, default=1)
 parser.add_argument("--first_nrows", type=int, default=-1)
 parser.add_argument("--ts_learning_rate", type=float, default=5e-4)
 parser.add_argument("--seed", type=int, default=42)
-parser.add_argument("--period_length", type=int, default=100)
+parser.add_argument("--period_length", type=int, default=50)
 args = parser.parse_args()
 
 
@@ -83,7 +83,7 @@ def cli_main():
         devices=args.devices,
         accelerator="gpu",
         max_epochs=args.max_epochs,
-        # precision="16-mixed",
+        precision="16-mixed",
         accumulate_grad_batches=args.accumulate_grad_batches,
         # deterministic=False,
         callbacks=callbacks,

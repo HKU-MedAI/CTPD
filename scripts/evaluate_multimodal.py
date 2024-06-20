@@ -18,7 +18,7 @@ from cmehr.paths import *
 parser = argparse.ArgumentParser(description="Evaluate multimodal fusion strategy.")
 parser.add_argument("--task", type=str, default="ihm",
                     choices=["ihm", "decomp", "los", "pheno"])
-parser.add_argument("--batch_size", type=int, default=64)
+parser.add_argument("--batch_size", type=int, default=48)
 parser.add_argument("--num_workers", type=int, default=4)
 parser.add_argument("--proto_emb_dir", type=str, 
                     default=str(ROOT_PATH / "prototype_results/mimic4_pretrain"))
@@ -86,7 +86,8 @@ def cli_main():
     model = MultimodalFusion(
         in_ts_size=train_ts_X.shape[-1],
         in_cxr_size=train_cxr_X.shape[-1],
-        shared_emb_dim=256)
+        shared_emb_dim=256,
+        lr=2e-4)
     run_name = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
     run_name = f"mimic4_{args.task}_multimodal_{run_name}"
     logger = WandbLogger(
@@ -95,8 +96,12 @@ def cli_main():
         project="cm-ehr", log_model=False)
     callbacks = [LearningRateMonitor(logging_interval="step"), 
                  EarlyStopping(monitor="val_auroc", mode="max", patience=10, verbose=True, min_delta=0.0)]
-    trainer = Trainer(max_epochs=100, devices=1, 
-                      callbacks=callbacks, logger=logger,
+    trainer = Trainer(max_epochs=100, 
+                      devices=1, 
+                      deterministic=True,
+                      callbacks=callbacks, 
+                      logger=logger,
+                      precision="16-mixed",
                       accelerator="gpu")
     trainer.fit(model, train_loader, val_loader)
     trainer.test(model, test_loader, ckpt_path="best")

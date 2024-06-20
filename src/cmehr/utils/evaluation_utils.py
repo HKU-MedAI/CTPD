@@ -56,7 +56,11 @@ def eval_linear(train_X, train_y, val_X, val_y, test_X, test_y,
         project="cm-ehr", log_model=False)
     callbacks = [LearningRateMonitor(logging_interval="step"), 
                  EarlyStopping(monitor="val_auroc", mode="max", patience=10, verbose=True, min_delta=0.0)]
-    trainer = Trainer(max_epochs=100, devices=1, callbacks=callbacks, logger=logger,
-                      accelerator="gpu")
+    trainer = Trainer(max_epochs=100, 
+                      devices=1, 
+                      callbacks=callbacks, 
+                      logger=logger,
+                      accelerator="gpu",
+                      precision="16-mixed")
     trainer.fit(model, train_loader, val_loader)
     trainer.test(model, test_loader, ckpt_path="best")

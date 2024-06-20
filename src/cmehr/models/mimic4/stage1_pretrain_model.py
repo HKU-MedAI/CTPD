@@ -17,7 +17,6 @@ class MIMIC4PretrainModule(LightningModule):
                  orig_d_ts: int = 25,
                  orig_reg_d_ts: int = 50,
                  max_epochs: int = 10,
-                 img_learning_rate: float = 1e-4,
                  ts_learning_rate: float = 4e-4,
                  embed_time: int = 64,
                  embed_dim: int = 128,
@@ -35,7 +34,6 @@ class MIMIC4PretrainModule(LightningModule):
         self.orig_d_ts = orig_d_ts
         self.orig_reg_d_ts = orig_reg_d_ts
         self.max_epochs = max_epochs
-        self.img_learning_rate = img_learning_rate
         self.ts_learning_rate = ts_learning_rate
         self.embed_dim = embed_dim
         self.num_imgs = num_imgs
@@ -43,8 +41,9 @@ class MIMIC4PretrainModule(LightningModule):
         self.cm_loss_weight = cm_loss_weight
 
         self.img_encoder = get_biovil_t_image_encoder()
-        for param in self.img_encoder.parameters():
-            param.requires_grad = False
+        # Don't freeze image encoder
+        # for param in self.img_encoder.parameters():
+        #     param.requires_grad = False
         self.img_embed_dim = 512
         self.img_proj_layer = nn.Linear(self.img_embed_dim, embed_dim)
 
@@ -65,7 +64,7 @@ class MIMIC4PretrainModule(LightningModule):
         self.periodic_img = nn.Linear(1, embed_time-1)
         self.linear_img = nn.Linear(1, 1)
         # For CXR, we encode it into 5 time points ...
-        self.time_query_img = torch.linspace(0, 1., self.tt_max // 25)
+        self.time_query_img = torch.linspace(0, 1., self.tt_max // 20)
         self.time_attn_img = multiTimeAttention(
             self.embed_dim, self.embed_dim, embed_time, 8)
         
@@ -225,10 +224,13 @@ class MIMIC4PretrainModule(LightningModule):
         return loss_dict["loss"]
 
     def configure_optimizers(self):
-        optimizer = torch.optim.Adam(
-            self.parameters(), lr=self.ts_learning_rate)
-        lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
-            optimizer, factor=0.4, patience=3, verbose=True, mode='min')
+        optimizer= torch.optim.Adam([
+                {'params': [p for n, p in self.named_parameters() if 'img_encoder' not in n]},
+                {'params':[p for n, p in self.named_parameters() if 'img_encoder' in n], 'lr': self.ts_learning_rate / 10}
+            ], lr=self.ts_learning_rate)
+        lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
+            optimizer, T_max=100, eta_min=1e-8
+        )
         scheduler = {
             'scheduler': lr_scheduler,
             'monitor': 'val_loss',

@@ -3,7 +3,7 @@
 1. Pretrain a self-supervised model to learn representations.
 
 ```bash
-CUDA_VISIBLE_DEVICES=2,3 python pretrain_mimic4.py --devices 2
+CUDA_VISIBLE_DEVICES=0,1 python pretrain_mimic4.py --devices 2
 ```
 
 2. Extract embeddings from the training set.
@@ -19,7 +19,7 @@ BTW, this script can also be used to evaluate the performance of self-supervised
 3. Cluster learned representations into clusters. 
 
 ```bash
-python create_prototypes.py --n_proto 16
+python create_prototypes.py --n_proto 32
 ```
 
 4. Learn prototype-aggregated representations.
@@ -29,6 +29,9 @@ It seems that svm achieves the best evaluation performance.
 CUDA_VISIBLE_DEVICES=0 python embedding_mimic4.py --eval_method svm \
 --ts_proto_path /home/fywang/Documents/EHR_codebase/MMMSPG/prototype_results/mimic4_pretrain/ts_proto_16.pkl \
 --cxr_proto_path /home/fywang/Documents/EHR_codebase/MMMSPG/prototype_results/mimic4_pretrain/ts_proto_16.pkl
+
+CUDA_VISIBLE_DEVICES=0 python embedding_mimic4.py --eval_method svm \
+--ts_proto_path /home/fywang/Documents/EHR_codebase/MMMSPG/prototype_results/mimic4_pretrain/mm_proto_32.pkl
 ```
 
 5. Multimodal fusion 
