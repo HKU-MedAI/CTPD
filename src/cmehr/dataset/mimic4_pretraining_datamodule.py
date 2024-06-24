@@ -37,8 +37,8 @@ class MIMIC4MultimodalDataset(Dataset):
                  mimic_cxr_dir: str,
                  file_path: str,
                  split: str,
-                 num_imgs: int = 12,
-                 period_length: int = 400,
+                 num_imgs: int = 4,
+                 period_length: int = 48,
                  first_nrows: Optional[int] = None):
         super().__init__()
         data_path = os.path.join(file_path, f"norm_ts_{split}.pkl")
@@ -95,21 +95,28 @@ class MIMIC4MultimodalDataset(Dataset):
             img = self.img_transform(img)
             cxr_imgs.append(img)
 
+        cxr_imgs = torch.stack(cxr_imgs)
         reg_ts = torch.tensor(reg_ts, dtype=torch.float)
         ts = torch.tensor(ts, dtype=torch.float)
         ts_mask = torch.tensor(ts_mask, dtype=torch.long)
         ts_tt = torch.tensor(ts_tt, dtype=torch.float) / self.ts_max
         cxr_time = [t / self.ts_max for t in cxr_time]
         cxr_time_mask = [1] * len(cxr_time)
+        
+        C, H, W = cxr_imgs[0].shape
+        reg_img = torch.zeros(self.num_imgs, C, H, W)
+        reg_img_mask = torch.zeros(self.num_imgs)
+        cxr_time_indices = (np.array(cxr_time) * self.num_imgs).astype(int)
+        previous_img = cxr_imgs[0]
+        for i in range(self.num_imgs):
+            cur_indices = np.where(cxr_time_indices == i)[0]
+            if len(cur_indices) == 0:
+                reg_img[i] = previous_img
+            else:
+                reg_img[i] = cxr_imgs[np.random.choice(cur_indices)]
+                previous_img = reg_img[i]
+                reg_img_mask[i] = 1
 
-        if len(cxr_imgs) < self.num_imgs:
-            num_pad_imgs = self.num_imgs - len(cxr_imgs)
-            padded_imgs = [torch.zeros_like(cxr_imgs[0])] * num_pad_imgs
-            cxr_imgs.extend(padded_imgs)
-            cxr_time.extend([0] * num_pad_imgs)
-            cxr_time_mask.extend([0] * num_pad_imgs)
-
-        cxr_imgs = torch.stack(cxr_imgs)
         cxr_time = torch.tensor(cxr_time, dtype=torch.float)
         cxr_time_mask = torch.tensor(cxr_time_mask, dtype=torch.long)
 
@@ -125,7 +132,9 @@ class MIMIC4MultimodalDataset(Dataset):
                 'ts_tt': ts_tt, 'reg_ts': reg_ts,
                 "cxr_imgs": cxr_imgs,
                 "cxr_time": cxr_time,
-                "cxr_time_mask": cxr_time_mask
+                "cxr_time_mask": cxr_time_mask,
+                "reg_img": reg_img,
+                "reg_img_mask": reg_img_mask
                 }
 
     def __len__(self):
@@ -148,6 +157,9 @@ def custom_collate_fn(batch):
         [example['cxr_time'] for example in batch])
     cxr_time_mask = torch.stack(
         [example['cxr_time_mask'] for example in batch])
+    reg_imgs = torch.stack([example['reg_img'] for example in batch])
+    reg_imgs_mask = torch.stack([example['reg_img_mask'] for example in batch])
+
     return {
         "ts": ts_input_sequences,
         "ts_mask": ts_mask_sequences,
@@ -155,7 +167,9 @@ def custom_collate_fn(batch):
         "reg_ts": reg_ts_input,
         "cxr_imgs": cxr_imgs,
         "cxr_time": cxr_time,
-        "cxr_time_mask": cxr_time_mask
+        "cxr_time_mask": cxr_time_mask,
+        "reg_imgs": reg_imgs,
+        "reg_imgs_mask": reg_imgs_mask
     }
 
 
@@ -167,6 +181,7 @@ class MIMIC4MultimodalDataModule(LightningDataModule):
                  mimic_cxr_dir: str = str(MIMIC_CXR_JPG_PATH),
                  modeltype: str = "TS_CXR",
                  period_length: int = 100,
+                 num_imgs: int = 4,
                  first_nrows: Optional[int] = None
                  ) -> None:
         super().__init__()
@@ -178,6 +193,7 @@ class MIMIC4MultimodalDataModule(LightningDataModule):
         self.mimic_cxr_dir = mimic_cxr_dir
         self.modeltype = modeltype
         self.period_length = period_length
+        self.num_imgs = num_imgs
 
     def train_dataloader(self) -> TRAIN_DATALOADERS:
         dataset = MIMIC4MultimodalDataset(
@@ -185,7 +201,8 @@ class MIMIC4MultimodalDataModule(LightningDataModule):
             file_path=self.file_path,
             split="train",
             period_length=self.period_length,
-            first_nrows=self.first_nrows
+            first_nrows=self.first_nrows,
+            num_imgs=self.num_imgs
         )
         dataloader = DataLoader(dataset=dataset,
                                 batch_size=self.batch_size,
@@ -201,7 +218,8 @@ class MIMIC4MultimodalDataModule(LightningDataModule):
             file_path=self.file_path,
             split="val",
             period_length=self.period_length,
-            first_nrows=self.first_nrows
+            first_nrows=self.first_nrows,
+            num_imgs=self.num_imgs
         )
         dataloader = DataLoader(dataset=dataset,
                                 batch_size=self.batch_size,
@@ -217,7 +235,8 @@ class MIMIC4MultimodalDataModule(LightningDataModule):
             file_path=self.file_path,
             split="test",
             period_length=self.period_length,
-            first_nrows=self.first_nrows
+            first_nrows=self.first_nrows,
+            num_imgs=self.num_imgs
         )
         dataloader = DataLoader(dataset=dataset,
                                 batch_size=self.batch_size,
@@ -236,7 +255,7 @@ if __name__ == "__main__":
     #     split="val",
     #     first_nrows=None
     # )
-    # sample = dataset[48]
+    # sample = dataset[0]
 
     datamodule = MIMIC4MultimodalDataModule(
         file_path=str(ROOT_PATH / "output_mimic4/self_supervised_multimodal")

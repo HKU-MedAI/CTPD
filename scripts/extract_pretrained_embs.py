@@ -16,7 +16,7 @@ import ipdb
 
 '''
 CUDA_VISIBLE_DEVICES=0 python extract_pretrained_embs.py \
-    --ckpt_path /home/fywang/Documents/EHR_codebase/MMMSPG/log/ckpts/mimic4_pretrain_2024-06-18_23-26-33/epoch=84-step=17510.ckpt
+    --ckpt_path /home/fywang/Documents/EHR_codebase/MMMSPG/log/ckpts/mimic4_pretrain_2024-06-20_17-59-46/epoch=40-step=8446.ckpt
 '''
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -26,7 +26,7 @@ torch.set_float32_matmul_precision("high")
 
 
 parser = argparse.ArgumentParser(description="Evaluate MIMIC IV")
-parser.add_argument("--batch_size", type=int, default=24)
+parser.add_argument("--batch_size", type=int, default=12)
 parser.add_argument("--num_workers", type=int, default=4)
 parser.add_argument("--first_nrows", type=int, default=-1)
 parser.add_argument("--ckpt_path", type=str, 
@@ -106,7 +106,7 @@ def cli_main():
     args.save_feat_dir = os.path.join(BASE_DIR, args.save_feat_dir, f"mimic4_pretrain")
     os.makedirs(args.save_feat_dir, exist_ok=True)
     
-    args.period_length = 100
+    args.period_length = 48
     if args.ckpt_path:
         model = MIMIC4PretrainModule.load_from_checkpoint(args.ckpt_path, **vars(args))
     else:

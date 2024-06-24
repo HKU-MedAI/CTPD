@@ -23,7 +23,8 @@ pip install -e .
 - [x] collect a large dataset for self-supervised pretraining ...
 - [x] multimodal fusion
 - [x] merge dataset preprocessing code ... maybe write a README.md to illustrate how to formulate the dataset 
-- [ ] try soft contrastive learning ...
+- [ ] explore frequency prototypes for time series.
+- [ ] problem: the feature in temporal dimension is very similar.
 
 ### Results
 XXX

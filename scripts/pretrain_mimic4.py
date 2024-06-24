@@ -18,11 +18,11 @@ torch.backends.cudnn.benchmark = True  # type: ignore
 torch.set_float32_matmul_precision("high")
 
 '''
-CUDA_VISIBLE_DEVICES=1,3 python pretrain_mimic4.py --devices 2
+CUDA_VISIBLE_DEVICES=2,3 python pretrain_mimic4.py --devices 2
 '''
 
 parser = ArgumentParser(description="Self-supervised pretraining for MIMIC IV")
-parser.add_argument("--batch_size", type=int, default=12)
+parser.add_argument("--batch_size", type=int, default=16)
 parser.add_argument("--num_workers", type=int, default=4)
 parser.add_argument("--max_epochs", type=int, default=100)
 parser.add_argument("--devices", type=int, default=1)
@@ -31,7 +31,8 @@ parser.add_argument("--accumulate_grad_batches", type=int, default=1)
 parser.add_argument("--first_nrows", type=int, default=-1)
 parser.add_argument("--ts_learning_rate", type=float, default=5e-4)
 parser.add_argument("--seed", type=int, default=42)
-parser.add_argument("--period_length", type=int, default=50)
+parser.add_argument("--period_length", type=int, default=48)
+parser.add_argument("--num_imgs", type=int, default=4)
 args = parser.parse_args()
 
 
@@ -56,10 +57,12 @@ def cli_main():
         period_length=args.period_length,
         batch_size=args.batch_size,
         num_workers=args.num_workers,
-        first_nrows=args.first_nrows)
+        first_nrows=args.first_nrows,
+        num_imgs=args.num_imgs
+        )
 
     model = MIMIC4PretrainModule(**vars(args))
-
+    model.train_iters_per_epoch = len(dm.train_dataloader()) // (args.accumulate_grad_batches * args.devices)
     # initialize trainer
     run_name = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
     run_name = f"mimic4_pretrain_{run_name}"

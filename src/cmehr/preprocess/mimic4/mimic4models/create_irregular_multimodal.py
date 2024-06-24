@@ -32,7 +32,7 @@ parser.add_argument('--cxr_path', type=str,
 args = parser.parse_args()
 
 
-args.period_length = 24
+args.period_length = 48
 args.dataset_path = Path(args.dataset_path)
 output_dir = args.output_dir / "self_supervised_multimodal"
 os.makedirs(output_dir, exist_ok=True)

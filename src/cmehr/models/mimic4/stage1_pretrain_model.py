@@ -1,28 +1,54 @@
 from typing import Dict
 import ipdb
+import math
 import numpy as np
 from einops import rearrange
 import torch
+from torch import Tensor
 from torch import nn
 import torch.nn.functional as F
 from lightning import LightningModule
 from cmehr.models.mimic4.UTDE_modules import multiTimeAttention
+from cmehr.models.mimic4.tslanet_model import PatchEmbed, ICB
 from cmehr.backbone.vision.pretrained import get_biovil_t_image_encoder
 from cmehr.utils.hard_ts_losses import hier_CL_hard
 from cmehr.utils.soft_ts_losses import hier_CL_soft
+from cmehr.utils.lr_scheduler import linear_warmup_decay
 
+
+class PositionalEncoding(nn.Module):
+
+    def __init__(self, d_model: int, dropout: float = 0.1, max_len: int = 5000):
+        super().__init__()
+        self.dropout = nn.Dropout(p=dropout)
+
+        position = torch.arange(max_len).unsqueeze(1)
+        div_term = torch.exp(torch.arange(0, d_model, 2) * (-math.log(10000.0) / d_model))
+        pe = torch.zeros(max_len, 1, d_model)
+        pe[:, 0, 0::2] = torch.sin(position * div_term)
+        pe[:, 0, 1::2] = torch.cos(position * div_term)
+        self.register_buffer('pe', pe)
+
+    def forward(self, x: Tensor) -> Tensor:
+        """
+        Arguments:
+            x: Tensor, shape ``[batch_size, seq_len, embedding_dim]``0
+        """
+        return self.pe[:x.size(1)].permute(1, 0, 2)
+    
 
 class MIMIC4PretrainModule(LightningModule):
     def __init__(self,
-                 orig_d_ts: int = 25,
-                 orig_reg_d_ts: int = 50,
-                 max_epochs: int = 10,
+                 orig_d_ts: int = 15,
+                 orig_reg_d_ts: int = 30,
+                 warmup_epochs: int = 20,
+                 max_epochs: int = 100,
                  ts_learning_rate: float = 4e-4,
                  embed_time: int = 64,
                  embed_dim: int = 128,
                  num_imgs: int = 12,
                  period_length: float = 100,
-                 cm_loss_weight: float = 0.5,
+                 cm_loss_weight: float = 1.,
                  *args,
                  **kwargs
                  ):
@@ -39,34 +65,61 @@ class MIMIC4PretrainModule(LightningModule):
         self.num_imgs = num_imgs
         self.tt_max = period_length
         self.cm_loss_weight = cm_loss_weight
+        self.warmup_epochs = warmup_epochs
 
         self.img_encoder = get_biovil_t_image_encoder()
         # Don't freeze image encoder
         # for param in self.img_encoder.parameters():
         #     param.requires_grad = False
         self.img_embed_dim = 512
-        self.img_proj_layer = nn.Linear(self.img_embed_dim, embed_dim)
+        self.img_proj_layer = nn.Linear(self.img_embed_dim, self.embed_dim // 2)
 
         '''
         change this into two mtand:
         - TS mtand: 48 time points
         - CXR mtand: 5 time points
         '''
-        # for time series embedding
-        self.periodic_ts = nn.Linear(1, embed_time-1)
-        self.linear_ts = nn.Linear(1, 1)
-        # For TS, we encode it into hourly embedding within 400 hours ...
-        self.time_query_ts = torch.linspace(0, 1., self.tt_max)
-        self.time_attn_ts = multiTimeAttention(
-            self.orig_d_ts*2, self.embed_dim, embed_time, 8)
 
-        # for img embedding
-        self.periodic_img = nn.Linear(1, embed_time-1)
-        self.linear_img = nn.Linear(1, 1)
-        # For CXR, we encode it into 5 time points ...
-        self.time_query_img = torch.linspace(0, 1., self.tt_max // 20)
-        self.time_attn_img = multiTimeAttention(
-            self.embed_dim, self.embed_dim, embed_time, 8)
+        self.ts_conv1 = nn.Conv1d(self.orig_reg_d_ts, self.embed_dim, kernel_size=1)
+        self.img_conv1 = nn.Conv1d(self.embed_dim, self.embed_dim, kernel_size=1)
+
+        self.ts_patch_embed = PatchEmbed(
+                seq_len=self.tt_max, patch_size=1,
+                in_chans=self.embed_dim, embed_dim=self.embed_dim
+            )
+        self.ts_icb = ICB(in_features=self.embed_dim, 
+                       hidden_features=int(3 * self.embed_dim), 
+                       drop=0.)
+        self.ts_pos_embed = PositionalEncoding(self.embed_dim)
+        self.ts_pos_drop = nn.Dropout(p=0.15)
+        
+        self.img_patch_embed = PatchEmbed(
+                seq_len=self.tt_max, patch_size=1,
+                in_chans=self.embed_dim, embed_dim=self.embed_dim
+            )
+        self.img_icb = ICB(in_features=self.embed_dim, 
+                       hidden_features=int(3 * self.embed_dim), 
+                       drop=0.)
+        self.img_pos_embed = PositionalEncoding(self.embed_dim)
+        self.img_pos_drop = nn.Dropout(p=0.15)
+
+        # # for time series embedding
+        # self.periodic_ts = nn.Linear(1, embed_time-1)
+        # self.linear_ts = nn.Linear(1, 1)
+        # # For TS, we encode it into hourly embedding within 400 hours ...
+        # self.time_query_ts = torch.linspace(0, 1., self.tt_max)
+        # self.time_attn_ts = multiTimeAttention(
+        #     self.orig_d_ts*2, self.embed_dim, embed_time, 8)
+
+        # # for img embedding
+        # self.periodic_img = nn.Linear(1, embed_time-1)
+        # self.linear_img = nn.Linear(1, 1)
+        # # For CXR, we encode it into 5 time points ...
+        # self.time_query_img = torch.linspace(0, 1., self.tt_max // 20)
+        # self.time_attn_img = multiTimeAttention(
+        #     self.embed_dim, self.embed_dim, embed_time, 8)
+    
+        self.train_iters_per_epoch = -1
         
     def forward_ts_mtand(self,
                          x_ts: torch.Tensor,
@@ -126,74 +179,151 @@ class MIMIC4PretrainModule(LightningModule):
         all_indx = indx[:,None] + np.arange(num_elem)
         return A[torch.arange(all_indx.shape[0])[:, None], all_indx]
 
-    def aug_ts(self, ts, ts_tt, ts_mask):
+    def aug_reg_ts(self, x):
+        ''' Create two augmented views for regular time series'''
         np.random.seed(42)
-        # TODO: it denotes the minimum length of time series in a batch
-        ts_l = torch.sum(ts_mask.sum(dim=2) != 0, dim=1).min().item()
-        ts_l_max = ts_tt.size(1)
-        # max sure the crop length is at least not all zero
-        crop_l = np.random.randint(low=ts_l_max - ts_l + 1, high=ts_l_max+1)
-        crop_left = np.random.randint(ts_l_max - crop_l + 1)
+        ts_l = x.size(1)
+        crop_l = np.random.randint(low=ts_l // 3, high=ts_l+1)
+        crop_left = np.random.randint(ts_l - crop_l + 1)
         crop_right = crop_left + crop_l
         crop_eleft = np.random.randint(crop_left + 1)
-        crop_eright = np.random.randint(low=crop_right, high=ts_l_max + 1)
-        crop_offset = np.random.randint(low=-crop_eleft, high=ts_l_max - crop_eright + 1, size=ts.size(0))
-        ts_aug_1 = self.take_per_row(ts, crop_offset + crop_eleft, crop_right - crop_eleft)
-        ts_tt_aug_1 = self.take_per_row(ts_tt, crop_offset + crop_eleft, crop_right - crop_eleft)
-        ts_mask_aug_1 = self.take_per_row(ts_mask, crop_offset + crop_eleft, crop_right - crop_eleft)
-        ts_aug_2 = self.take_per_row(ts, crop_offset + crop_left, crop_eright - crop_left)
-        ts_tt_aug_2 = self.take_per_row(ts_tt, crop_offset + crop_left, crop_eright - crop_left)
-        ts_mask_aug_2 = self.take_per_row(ts_mask, crop_offset + crop_left, crop_eright - crop_left)
+        crop_eright = np.random.randint(low=crop_right, high=ts_l + 1)
+        crop_offset = np.random.randint(low=-crop_eleft, high=ts_l - crop_eright + 1, size=x.size(0))
+        # crop_eleft < crop_left < crop_right < crop_eright
+        # print(crop_eleft, crop_left, crop_right, crop_eright)
+        x_aug_1 = self.take_per_row(x, crop_offset + crop_eleft, crop_right - crop_eleft)
+        x_aug_2 = self.take_per_row(x, crop_offset + crop_left, crop_eright - crop_left)
 
-        return ts_aug_1, ts_tt_aug_1, ts_mask_aug_1, ts_aug_2, ts_tt_aug_2, ts_mask_aug_2
+        return x_aug_1, x_aug_2, crop_l
 
-    def extract_img_embs(self, imgs, img_time, img_time_mask):
-        batch_size = imgs.size(0)
-        valid_imgs = imgs[img_time_mask.bool()]
-        cxr_feats = self.img_encoder(valid_imgs).img_embedding
-        cxr_embs = self.img_proj_layer(cxr_feats)
+    # def aug_irg_ts(self, ts, ts_tt, ts_mask):
+    #     np.random.seed(42)
+    #     # TODO: it denotes the minimum length of time series in a batch
+    #     ts_l = torch.sum(ts_mask.sum(dim=2) != 0, dim=1).min().item()
+    #     ts_l_max = ts_tt.size(1)
+    #     # max sure the crop length is at least not all zero
+    #     crop_l = np.random.randint(low=ts_l_max - ts_l + 1, high=ts_l_max+1)
+    #     crop_left = np.random.randint(ts_l_max - crop_l + 1)
+    #     crop_right = crop_left + crop_l
+    #     crop_eleft = np.random.randint(crop_left + 1)
+    #     crop_eright = np.random.randint(low=crop_right, high=ts_l_max + 1)
+    #     crop_offset = np.random.randint(low=-crop_eleft, high=ts_l_max - crop_eright + 1, size=ts.size(0))
+    #     ts_aug_1 = self.take_per_row(ts, crop_offset + crop_eleft, crop_right - crop_eleft)
+    #     ts_tt_aug_1 = self.take_per_row(ts_tt, crop_offset + crop_eleft, crop_right - crop_eleft)
+    #     ts_mask_aug_1 = self.take_per_row(ts_mask, crop_offset + crop_eleft, crop_right - crop_eleft)
+    #     ts_aug_2 = self.take_per_row(ts, crop_offset + crop_left, crop_eright - crop_left)
+    #     ts_tt_aug_2 = self.take_per_row(ts_tt, crop_offset + crop_left, crop_eright - crop_left)
+    #     ts_mask_aug_2 = self.take_per_row(ts_mask, crop_offset + crop_left, crop_eright - crop_left)
 
-        padded_feats = torch.zeros(
-            batch_size, self.num_imgs, cxr_embs.size(-1)).type_as(cxr_embs)
-        padded_feats[img_time_mask.bool()] = cxr_embs
-        img_time_mask = img_time_mask.unsqueeze(2).repeat(1, 1, cxr_embs.size(-1))
-        proj_img_embs = self.forward_cxr_mtand(
-            padded_feats, img_time_mask, img_time)
+    #     return ts_aug_1, ts_tt_aug_1, ts_mask_aug_1, ts_aug_2, ts_tt_aug_2, ts_mask_aug_2
+
+    # def extract_img_embs(self, imgs, img_time, img_time_mask):
+    #     batch_size = imgs.size(0)
+    #     valid_imgs = imgs[img_time_mask.bool()]
+    #     cxr_feats = self.img_encoder(valid_imgs).img_embedding
+    #     cxr_embs = self.img_proj_layer(cxr_feats)
+
+    #     padded_feats = torch.zeros(
+    #         batch_size, self.num_imgs, cxr_embs.size(-1)).type_as(cxr_embs)
+    #     padded_feats[img_time_mask.bool()] = cxr_embs
+    #     img_time_mask = img_time_mask.unsqueeze(2).repeat(1, 1, cxr_embs.size(-1))
+    #     proj_img_embs = self.forward_cxr_mtand(
+    #         padded_feats, img_time_mask, img_time)
         
-        return proj_img_embs
+    #     return proj_img_embs
+
+    def forward_ts_icb(self, x):
+        ''' Forward time series using ICB blocks'''
+        x = self.ts_patch_embed(x)
+        x = x + self.ts_pos_embed(x)
+        x = self.ts_pos_drop(x)
+        x = self.ts_icb(x)
+        return x
+
+    def forward_img_icb(self, x):
+        ''' Forward image series using ICB blocks'''
+        x = self.img_patch_embed(x)
+        x = x + self.img_pos_embed(x)
+        x = self.img_pos_drop(x)
+        x = self.img_icb(x)
+        return x
 
     def forward(self, batch: Dict):
-
+        # TODO: consider the reg_ts in the frequency domain ...
         batch_size = batch["ts"].size(0)
-        # (batch_size, tt_max, embed_dim)
-        ts, ts_mask, ts_tt = batch["ts"], batch["ts_mask"], batch["ts_tt"]
-        # create two augmentation view for TS
-        ts_aug_1, ts_tt_aug_1, ts_mask_aug_1, ts_aug_2, ts_tt_aug_2, ts_mask_aug_2 = self.aug_ts(ts, ts_tt, ts_mask)
-        proj_ts_aug_1 = self.forward_ts_mtand(
-            ts_aug_1, ts_mask_aug_1, ts_tt_aug_1)
-        proj_ts_aug_2 = self.forward_ts_mtand(
-            ts_aug_2, ts_mask_aug_2, ts_tt_aug_2)
+        reg_ts = batch["reg_ts"]
+        
+        # create two augmentation view for regular TS
+        ts_aug_1, ts_aug_2, crop_l = self.aug_reg_ts(reg_ts)
 
-        proj_img_embs = self.extract_img_embs(
-            batch["cxr_imgs"], batch["cxr_time"] , batch["cxr_time_mask"])
+        # Embedding for each individual timestamp
+        feat_ts_aug_1 = self.ts_conv1(ts_aug_1.permute(0, 2, 1))
+        feat_ts_aug_2 = self.ts_conv1(ts_aug_2.permute(0, 2, 1))
+
+        # Learn temporal interaction
+        emb_ts_aug_1 = self.forward_ts_icb(feat_ts_aug_1)
+        emb_ts_aug_2 = self.forward_ts_icb(feat_ts_aug_2)
+        emb_ts_aug_1 = emb_ts_aug_1[:, -crop_l:]
+        emb_ts_aug_2 = emb_ts_aug_2[:, :crop_l]
         ts2vec_loss = hier_CL_hard(
-            proj_ts_aug_1, proj_ts_aug_2
+            emb_ts_aug_1, emb_ts_aug_2
         )
 
-        del proj_ts_aug_1, proj_ts_aug_2
-        proj_ts_embs = self.forward_ts_mtand(ts, ts_mask, ts_tt)
+        # (batch_size, tt_max, embed_dim)
+        # ts, ts_mask, ts_tt = batch["ts"], batch["ts_mask"], batch["ts_tt"]
+        # create two augmentation view for TS
+        # ts_aug_1, ts_tt_aug_1, ts_mask_aug_1, ts_aug_2, ts_tt_aug_2, ts_mask_aug_2 = self.aug_ts(ts, ts_tt, ts_mask)
+        # proj_ts_aug_1 = self.forward_ts_mtand(
+        #     ts_aug_1, ts_mask_aug_1, ts_tt_aug_1)
+        # proj_ts_aug_2 = self.forward_ts_mtand(
+        #     ts_aug_2, ts_mask_aug_2, ts_tt_aug_2)
+
+        # Create image embeddings
+        reg_imgs = rearrange(batch["reg_imgs"], "b n c h w -> (b n) c h w")
+        cxr_feats = self.img_encoder(reg_imgs).img_embedding
+        cxr_embs = self.img_proj_layer(cxr_feats)
+        cxr_embs = rearrange(cxr_embs, "(b n) d -> b n d", b=batch_size)
+        cxr_mask = batch["reg_imgs_mask"].unsqueeze(-1).repeat(1, 1, cxr_embs.size(-1))
+        cxr_embs = torch.cat((cxr_embs, cxr_mask), 2)
+        img_feat = self.img_conv1(cxr_embs.permute(0, 2, 1))
+        img_emb = self.forward_img_icb(img_feat)
+
+        # Cross modal loss
+        feat_ts = self.ts_conv1(reg_ts.permute(0, 2, 1))
+        emb_ts = self.forward_ts_icb(feat_ts)
+        num_imgs = img_emb.size(1)
+        avg_ts_emb = F.avg_pool1d(emb_ts.permute(0, 2, 1), kernel_size=(self.tt_max // num_imgs), 
+                                  stride=(self.tt_max // num_imgs))
+        avg_ts_emb = avg_ts_emb.permute(0, 2, 1)
+        avg_ts_emb = rearrange(avg_ts_emb, "b n d -> (b n) d")
+        img_emb = rearrange(img_emb, "b n d -> (b n) d")
+        cm_loss = self.infonce_loss(avg_ts_emb, img_emb)
+
+        # img_time_indices = 
         # find corresponding CXR at each time point
-        cxr_time_indices = torch.clamp(self.time_query_img // (1 / self.tt_max), 0, self.tt_max - 1)
-        ts_embs = proj_ts_embs[torch.arange(batch_size)[:, None], cxr_time_indices.long()]
-        ts_embs = rearrange(ts_embs, "b n d -> (b n) d")
-        proj_img_embs = rearrange(proj_img_embs, "b n d -> (b n) d")
-        cm_loss = self.infonce_loss(ts_embs, proj_img_embs)
+        # cxr_time_indices = torch.clamp(self.time_query_img // (1 / self.tt_max), 0, self.tt_max - 1)
+        # ts_embs = proj_ts_embs[torch.arange(batch_size)[:, None], cxr_time_indices.long()]
+
+        # proj_img_embs = self.extract_img_embs(
+        #     batch["cxr_imgs"], batch["cxr_time"] , batch["cxr_time_mask"])
+        # ts2vec_loss = hier_CL_hard(
+        #     proj_ts_aug_1, proj_ts_aug_2
+        # )
+        # del proj_ts_aug_1, proj_ts_aug_2
+        # proj_ts_embs = self.forward_ts_mtand(ts, ts_mask, ts_tt)
+
+        # # find corresponding CXR at each time point
+        # cxr_time_indices = torch.clamp(self.time_query_img // (1 / self.tt_max), 0, self.tt_max - 1)
+        # ts_embs = proj_ts_embs[torch.arange(batch_size)[:, None], cxr_time_indices.long()]
+        # ts_embs = rearrange(ts_embs, "b n d -> (b n) d")
+        # proj_img_embs = rearrange(proj_img_embs, "b n d -> (b n) d")
+        # cm_loss = self.infonce_loss(ts_embs, proj_img_embs)
+
         loss_dict = {
             "loss": ts2vec_loss + self.cm_loss_weight * cm_loss,
             "ts2vec_loss": ts2vec_loss,
             "cm_loss": cm_loss
         }
-
         return loss_dict
 
     def infonce_loss(self, out_1, out_2, temperature=0.07):
@@ -228,15 +358,20 @@ class MIMIC4PretrainModule(LightningModule):
                 {'params': [p for n, p in self.named_parameters() if 'img_encoder' not in n]},
                 {'params':[p for n, p in self.named_parameters() if 'img_encoder' in n], 'lr': self.ts_learning_rate / 10}
             ], lr=self.ts_learning_rate)
-        lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
-            optimizer, T_max=100, eta_min=1e-8
-        )
+        
+        assert self.train_iters_per_epoch != -1, "train_iters_per_epoch is not set"
+        warmup_steps = self.train_iters_per_epoch * self.warmup_epochs
+        total_steps = self.train_iters_per_epoch * self.max_epochs
+
         scheduler = {
-            'scheduler': lr_scheduler,
-            'monitor': 'val_loss',
-            'interval': 'epoch',
-            'frequency': 1
+            "scheduler": torch.optim.lr_scheduler.LambdaLR(
+                optimizer,
+                linear_warmup_decay(warmup_steps, total_steps, cosine=True),
+            ),
+            "interval": "step",
+            "frequency": 1,
         }
+
         return [optimizer], [scheduler]
     
 
@@ -255,6 +390,6 @@ if __name__ == "__main__":
     for k, v in batch.items():
         print(f"{k}: ", v.shape)
 
-    model = MIMIC4PretrainModule(period_length=100)
+    model = MIMIC4PretrainModule(period_length=48, num_imgs=4)
     loss = model(batch)
     print(loss)
