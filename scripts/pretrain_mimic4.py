@@ -29,10 +29,11 @@ parser.add_argument("--devices", type=int, default=1)
 parser.add_argument("--max_length", type=int, default=1024)
 parser.add_argument("--accumulate_grad_batches", type=int, default=1)
 parser.add_argument("--first_nrows", type=int, default=-1)
-parser.add_argument("--ts_learning_rate", type=float, default=5e-4)
+parser.add_argument("--ts_learning_rate", type=float, default=2e-5)
 parser.add_argument("--seed", type=int, default=42)
 parser.add_argument("--period_length", type=int, default=48)
 parser.add_argument("--num_imgs", type=int, default=4)
+parser.add_argument("--cm_loss_weight", type=float, default=1.)
 args = parser.parse_args()
 
 
@@ -92,6 +93,8 @@ def cli_main():
         callbacks=callbacks,
         logger=logger,
         strategy="ddp_find_unused_parameters_true",
+        gradient_clip_val=0.5,
+        detect_anomaly=True
     )
 
     trainer.fit(model, dm)

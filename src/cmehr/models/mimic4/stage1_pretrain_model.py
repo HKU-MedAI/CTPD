@@ -8,12 +8,14 @@ from torch import Tensor
 from torch import nn
 import torch.nn.functional as F
 from lightning import LightningModule
+from timm.models.layers import DropPath
 from cmehr.models.mimic4.UTDE_modules import multiTimeAttention
 from cmehr.models.mimic4.tslanet_model import PatchEmbed, ICB
 from cmehr.backbone.vision.pretrained import get_biovil_t_image_encoder
 from cmehr.utils.hard_ts_losses import hier_CL_hard
 from cmehr.utils.soft_ts_losses import hier_CL_soft
 from cmehr.utils.lr_scheduler import linear_warmup_decay
+from cmehr.models.common.dilated_conv import DilatedConvEncoder
 
 
 class PositionalEncoding(nn.Module):
@@ -48,7 +50,7 @@ class MIMIC4PretrainModule(LightningModule):
                  embed_dim: int = 128,
                  num_imgs: int = 12,
                  period_length: float = 100,
-                 cm_loss_weight: float = 1.,
+                 cm_loss_weight: float = 0.,
                  *args,
                  **kwargs
                  ):
@@ -83,25 +85,43 @@ class MIMIC4PretrainModule(LightningModule):
         self.ts_conv1 = nn.Conv1d(self.orig_reg_d_ts, self.embed_dim, kernel_size=1)
         self.img_conv1 = nn.Conv1d(self.embed_dim, self.embed_dim, kernel_size=1)
 
-        self.ts_patch_embed = PatchEmbed(
-                seq_len=self.tt_max, patch_size=1,
-                in_chans=self.embed_dim, embed_dim=self.embed_dim
-            )
-        self.ts_icb = ICB(in_features=self.embed_dim, 
-                       hidden_features=int(3 * self.embed_dim), 
-                       drop=0.)
-        self.ts_pos_embed = PositionalEncoding(self.embed_dim)
-        self.ts_pos_drop = nn.Dropout(p=0.15)
+        depth = 3
+        self.ts_dilated_conv = DilatedConvEncoder(
+            in_channels=self.embed_dim, 
+            channels=[self.embed_dim] * depth + [self.embed_dim], 
+            kernel_size=3
+        )
+
+        self.img_dilated_conv = DilatedConvEncoder(
+            in_channels=self.embed_dim, 
+            channels=[self.embed_dim] * depth + [self.embed_dim], 
+            kernel_size=3
+        )
+        # self.ts_patch_embed = PatchEmbed(
+        #         seq_len=self.tt_max, patch_size=1,
+        #         in_chans=self.embed_dim, embed_dim=self.embed_dim
+        #     )
+        # self.ts_icb = ICB(in_features=self.embed_dim, 
+        #                  hidden_features=int(3 * self.embed_dim), 
+        #                  drop=0.)
+        # self.ts_pos_embed = PositionalEncoding(self.embed_dim)
+        # self.ts_pos_drop = nn.Dropout(p=0.15)
+        # self.ts_norm = nn.LayerNorm(self.embed_dim)
+        # drop_path = 0.1
+        # self.ts_drop_path = DropPath(drop_path) if drop_path > 0. else nn.Identity()
         
-        self.img_patch_embed = PatchEmbed(
-                seq_len=self.tt_max, patch_size=1,
-                in_chans=self.embed_dim, embed_dim=self.embed_dim
-            )
-        self.img_icb = ICB(in_features=self.embed_dim, 
-                       hidden_features=int(3 * self.embed_dim), 
-                       drop=0.)
-        self.img_pos_embed = PositionalEncoding(self.embed_dim)
-        self.img_pos_drop = nn.Dropout(p=0.15)
+        # self.img_patch_embed = PatchEmbed(
+        #         seq_len=self.tt_max, patch_size=1,
+        #         in_chans=self.embed_dim, embed_dim=self.embed_dim
+        #     )
+        # self.img_icb = ICB(in_features=self.embed_dim, 
+        #                hidden_features=int(3 * self.embed_dim), 
+        #                drop=0.)
+        # self.img_pos_embed = PositionalEncoding(self.embed_dim)
+        # self.img_pos_drop = nn.Dropout(p=0.15)
+        # self.img_norm = nn.LayerNorm(self.embed_dim)
+        # drop_path = 0.1
+        # self.img_drop_path = DropPath(drop_path) if drop_path > 0. else nn.Identity()
 
         # # for time series embedding
         # self.periodic_ts = nn.Linear(1, embed_time-1)
@@ -121,58 +141,58 @@ class MIMIC4PretrainModule(LightningModule):
     
         self.train_iters_per_epoch = -1
         
-    def forward_ts_mtand(self,
-                         x_ts: torch.Tensor,
-                         x_ts_mask: torch.Tensor,
-                         ts_tt_list: torch.Tensor):
-        '''
-        Forward irregular time series using mTAND.
-        '''
-        def learn_time_embedding(tt):
-            tt = tt.unsqueeze(-1)
-            out2 = torch.sin(self.periodic_ts(tt))
-            out1 = self.linear_ts(tt)
-            return torch.cat([out1, out2], -1)
+    # def forward_ts_mtand(self,
+    #                      x_ts: torch.Tensor,
+    #                      x_ts_mask: torch.Tensor,
+    #                      ts_tt_list: torch.Tensor):
+    #     '''
+    #     Forward irregular time series using mTAND.
+    #     '''
+    #     def learn_time_embedding(tt):
+    #         tt = tt.unsqueeze(-1)
+    #         out2 = torch.sin(self.periodic_ts(tt))
+    #         out1 = self.linear_ts(tt)
+    #         return torch.cat([out1, out2], -1)
     
-        # (B, N) -> (B, N, embed_time)
-        time_key_ts = learn_time_embedding(
-            ts_tt_list)
-        x_ts_irg = torch.cat((x_ts, x_ts_mask), 2)
-        x_ts_mask = torch.cat((x_ts_mask, x_ts_mask), 2)
+    #     # (B, N) -> (B, N, embed_time)
+    #     time_key_ts = learn_time_embedding(
+    #         ts_tt_list)
+    #     x_ts_irg = torch.cat((x_ts, x_ts_mask), 2)
+    #     x_ts_mask = torch.cat((x_ts_mask, x_ts_mask), 2)
 
-        time_query = learn_time_embedding(
-            self.time_query_ts.unsqueeze(0).type_as(x_ts))
-        # query: (1, N_r, embed_time),
-        # key: (B, N, embed_time),
-        # value: (B, N, 2 * D_t)
-        # mask: (B, N, 2 * D_t)
-        # out: (B, N_r, 128?)
-        proj_x_ts_irg = self.time_attn_ts(
-            time_query, time_key_ts, x_ts_irg, x_ts_mask)
+    #     time_query = learn_time_embedding(
+    #         self.time_query_ts.unsqueeze(0).type_as(x_ts))
+    #     # query: (1, N_r, embed_time),
+    #     # key: (B, N, embed_time),
+    #     # value: (B, N, 2 * D_t)
+    #     # mask: (B, N, 2 * D_t)
+    #     # out: (B, N_r, 128?)
+    #     proj_x_ts_irg = self.time_attn_ts(
+    #         time_query, time_key_ts, x_ts_irg, x_ts_mask)
 
-        return proj_x_ts_irg
+    #     return proj_x_ts_irg
 
-    def forward_cxr_mtand(self,
-                         x_cxr: torch.Tensor,
-                         x_cxr_mask: torch.Tensor,
-                         cxr_tt_list: torch.Tensor):
-        '''
-        Forward irregular CXRs using mTAND.
-        '''
-        def learn_time_embedding(tt):
-            tt = tt.unsqueeze(-1)
-            out2 = torch.sin(self.periodic_img(tt))
-            out1 = self.linear_img(tt)
-            return torch.cat([out1, out2], -1)
+    # def forward_cxr_mtand(self,
+    #                      x_cxr: torch.Tensor,
+    #                      x_cxr_mask: torch.Tensor,
+    #                      cxr_tt_list: torch.Tensor):
+    #     '''
+    #     Forward irregular CXRs using mTAND.
+    #     '''
+    #     def learn_time_embedding(tt):
+    #         tt = tt.unsqueeze(-1)
+    #         out2 = torch.sin(self.periodic_img(tt))
+    #         out1 = self.linear_img(tt)
+    #         return torch.cat([out1, out2], -1)
         
-        time_key_cxr = learn_time_embedding(
-            cxr_tt_list)
-        time_query = learn_time_embedding(
-            self.time_query_img.unsqueeze(0).type_as(x_cxr))
-        proj_x_img_irg = self.time_attn_img(
-            time_query, time_key_cxr, x_cxr, x_cxr_mask)
+    #     time_key_cxr = learn_time_embedding(
+    #         cxr_tt_list)
+    #     time_query = learn_time_embedding(
+    #         self.time_query_img.unsqueeze(0).type_as(x_cxr))
+    #     proj_x_img_irg = self.time_attn_img(
+    #         time_query, time_key_cxr, x_cxr, x_cxr_mask)
 
-        return proj_x_img_irg
+    #     return proj_x_img_irg
 
     @staticmethod
     def take_per_row(A, indx, num_elem):
@@ -181,9 +201,8 @@ class MIMIC4PretrainModule(LightningModule):
 
     def aug_reg_ts(self, x):
         ''' Create two augmented views for regular time series'''
-        np.random.seed(42)
         ts_l = x.size(1)
-        crop_l = np.random.randint(low=ts_l // 3, high=ts_l+1)
+        crop_l = np.random.randint(low=ts_l // 4, high=ts_l+1)
         crop_left = np.random.randint(ts_l - crop_l + 1)
         crop_right = crop_left + crop_l
         crop_eleft = np.random.randint(crop_left + 1)
@@ -232,22 +251,6 @@ class MIMIC4PretrainModule(LightningModule):
         
     #     return proj_img_embs
 
-    def forward_ts_icb(self, x):
-        ''' Forward time series using ICB blocks'''
-        x = self.ts_patch_embed(x)
-        x = x + self.ts_pos_embed(x)
-        x = self.ts_pos_drop(x)
-        x = self.ts_icb(x)
-        return x
-
-    def forward_img_icb(self, x):
-        ''' Forward image series using ICB blocks'''
-        x = self.img_patch_embed(x)
-        x = x + self.img_pos_embed(x)
-        x = self.img_pos_drop(x)
-        x = self.img_icb(x)
-        return x
-
     def forward(self, batch: Dict):
         # TODO: consider the reg_ts in the frequency domain ...
         batch_size = batch["ts"].size(0)
@@ -261,13 +264,20 @@ class MIMIC4PretrainModule(LightningModule):
         feat_ts_aug_2 = self.ts_conv1(ts_aug_2.permute(0, 2, 1))
 
         # Learn temporal interaction
-        emb_ts_aug_1 = self.forward_ts_icb(feat_ts_aug_1)
-        emb_ts_aug_2 = self.forward_ts_icb(feat_ts_aug_2)
+        emb_ts_aug_1 = self.ts_dilated_conv(feat_ts_aug_1).permute(0, 2, 1)
+        emb_ts_aug_1 = F.normalize(emb_ts_aug_1, dim=-1)
+        emb_ts_aug_2 = self.ts_dilated_conv(feat_ts_aug_2).permute(0, 2, 1)
+        emb_ts_aug_2 = F.normalize(emb_ts_aug_2, dim=-1)
+
         emb_ts_aug_1 = emb_ts_aug_1[:, -crop_l:]
         emb_ts_aug_2 = emb_ts_aug_2[:, :crop_l]
         ts2vec_loss = hier_CL_hard(
             emb_ts_aug_1, emb_ts_aug_2
         )
+
+        if torch.isnan(ts2vec_loss):
+            from cmehr.utils.hard_ts_losses import inst_CL_hard, temp_CL_hard
+            ipdb.set_trace()
 
         # (batch_size, tt_max, embed_dim)
         # ts, ts_mask, ts_tt = batch["ts"], batch["ts_mask"], batch["ts_tt"]
@@ -286,38 +296,18 @@ class MIMIC4PretrainModule(LightningModule):
         cxr_mask = batch["reg_imgs_mask"].unsqueeze(-1).repeat(1, 1, cxr_embs.size(-1))
         cxr_embs = torch.cat((cxr_embs, cxr_mask), 2)
         img_feat = self.img_conv1(cxr_embs.permute(0, 2, 1))
-        img_emb = self.forward_img_icb(img_feat)
+        img_emb = self.img_dilated_conv(img_feat).permute(0, 2, 1)
+        num_imgs = img_emb.size(1)
 
         # Cross modal loss
         feat_ts = self.ts_conv1(reg_ts.permute(0, 2, 1))
-        emb_ts = self.forward_ts_icb(feat_ts)
-        num_imgs = img_emb.size(1)
-        avg_ts_emb = F.avg_pool1d(emb_ts.permute(0, 2, 1), kernel_size=(self.tt_max // num_imgs), 
+        emb_ts = self.ts_dilated_conv(feat_ts)
+        avg_ts_emb = F.avg_pool1d(emb_ts, kernel_size=(self.tt_max // num_imgs), 
                                   stride=(self.tt_max // num_imgs))
         avg_ts_emb = avg_ts_emb.permute(0, 2, 1)
         avg_ts_emb = rearrange(avg_ts_emb, "b n d -> (b n) d")
         img_emb = rearrange(img_emb, "b n d -> (b n) d")
         cm_loss = self.infonce_loss(avg_ts_emb, img_emb)
-
-        # img_time_indices = 
-        # find corresponding CXR at each time point
-        # cxr_time_indices = torch.clamp(self.time_query_img // (1 / self.tt_max), 0, self.tt_max - 1)
-        # ts_embs = proj_ts_embs[torch.arange(batch_size)[:, None], cxr_time_indices.long()]
-
-        # proj_img_embs = self.extract_img_embs(
-        #     batch["cxr_imgs"], batch["cxr_time"] , batch["cxr_time_mask"])
-        # ts2vec_loss = hier_CL_hard(
-        #     proj_ts_aug_1, proj_ts_aug_2
-        # )
-        # del proj_ts_aug_1, proj_ts_aug_2
-        # proj_ts_embs = self.forward_ts_mtand(ts, ts_mask, ts_tt)
-
-        # # find corresponding CXR at each time point
-        # cxr_time_indices = torch.clamp(self.time_query_img // (1 / self.tt_max), 0, self.tt_max - 1)
-        # ts_embs = proj_ts_embs[torch.arange(batch_size)[:, None], cxr_time_indices.long()]
-        # ts_embs = rearrange(ts_embs, "b n d -> (b n) d")
-        # proj_img_embs = rearrange(proj_img_embs, "b n d -> (b n) d")
-        # cm_loss = self.infonce_loss(ts_embs, proj_img_embs)
 
         loss_dict = {
             "loss": ts2vec_loss + self.cm_loss_weight * cm_loss,
@@ -382,7 +372,7 @@ if __name__ == "__main__":
 
     datamodule = MIMIC4MultimodalDataModule(
         file_path=str(ROOT_PATH / "output_mimic4/self_supervised_multimodal"),
-        period_length=100
+        period_length=48
     )
     batch = dict()
     for batch in datamodule.val_dataloader():

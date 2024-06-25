@@ -95,7 +95,6 @@ class MIMIC4MultimodalDataset(Dataset):
             img = self.img_transform(img)
             cxr_imgs.append(img)
 
-        cxr_imgs = torch.stack(cxr_imgs)
         reg_ts = torch.tensor(reg_ts, dtype=torch.float)
         ts = torch.tensor(ts, dtype=torch.float)
         ts_mask = torch.tensor(ts_mask, dtype=torch.long)
@@ -117,6 +116,14 @@ class MIMIC4MultimodalDataset(Dataset):
                 previous_img = reg_img[i]
                 reg_img_mask[i] = 1
 
+        if len(cxr_imgs) < self.num_imgs:
+            num_pad_imgs = self.num_imgs - len(cxr_imgs)
+            padded_imgs = [torch.zeros_like(cxr_imgs[0])] * num_pad_imgs
+            cxr_imgs.extend(padded_imgs)
+            cxr_time.extend([0] * num_pad_imgs)
+            cxr_time_mask.extend([0] * num_pad_imgs)
+
+        cxr_imgs = torch.stack(cxr_imgs)
         cxr_time = torch.tensor(cxr_time, dtype=torch.float)
         cxr_time_mask = torch.tensor(cxr_time_mask, dtype=torch.long)
 
@@ -257,13 +264,23 @@ if __name__ == "__main__":
     # )
     # sample = dataset[0]
 
-    datamodule = MIMIC4MultimodalDataModule(
-        file_path=str(ROOT_PATH / "output_mimic4/self_supervised_multimodal")
-    )
-    batch = dict()
-    for batch in datamodule.val_dataloader():
-        break
-    for k, v in batch.items():
-        print(f"{k}: ", v.shape)
+    # datamodule = MIMIC4MultimodalDataModule(
+    #     file_path=str(ROOT_PATH / "output_mimic4/self_supervised_multimodal")
+    # )
+    # batch = dict()
+    # for batch in datamodule.train_dataloader():
+    #     if batch["reg_ts"].isnan().any():
+    #         break
+    # check if there are nan in reg_ts
+    pkl_file = ROOT_PATH / "output_mimic4/self_supervised_multimodal" / "norm_ts_train.pkl"
+    from tqdm import tqdm
+    with open(pkl_file, "rb") as f:
+        data = pickle.load(f)
+        for sample in tqdm(data, total=len(data)):
+            if np.isnan(sample["reg_ts"]).any():
+                print("Nan in reg_ts")
+                break
 
-    ipdb.set_trace()
+        # for k, v in batch.items():
+        #     print(f"{k}: ", v.shape)
+        #     print(batch["reg_ts"].isnan().any()) 
