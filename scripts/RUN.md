@@ -3,7 +3,7 @@
 1. Pretrain a self-supervised model to learn representations.
 
 ```bash
-CUDA_VISIBLE_DEVICES=0,1 python pretrain_mimic4.py --devices 2
+CUDA_VISIBLE_DEVICES=0,3 python pretrain_mimic4.py --devices 2
 ```
 
 2. Extract embeddings from the training set.
@@ -27,10 +27,10 @@ python create_prototypes.py --n_proto 32
 It seems that svm achieves the best evaluation performance.
 ```bash
 CUDA_VISIBLE_DEVICES=0 python embedding_mimic4.py --eval_method svm \
---ts_proto_path /home/fywang/Documents/EHR_codebase/MMMSPG/prototype_results/mimic4_pretrain/ts_proto_16.pkl \
---cxr_proto_path /home/fywang/Documents/EHR_codebase/MMMSPG/prototype_results/mimic4_pretrain/ts_proto_16.pkl
+--ts_proto_path /home/fywang/Documents/EHR_codebase/MMMSPG/prototype_results/mimic4_pretrain/ts_proto_32.pkl \
+--cxr_proto_path /home/fywang/Documents/EHR_codebase/MMMSPG/prototype_results/mimic4_pretrain/ts_proto_32.pkl
 
-CUDA_VISIBLE_DEVICES=0 python embedding_mimic4.py --eval_method svm \
+CUDA_VISIBLE_DEVICES=0 python embedding_mimic4.py --eval_method linear \
 --ts_proto_path /home/fywang/Documents/EHR_codebase/MMMSPG/prototype_results/mimic4_pretrain/mm_proto_32.pkl
 ```
 
@@ -38,4 +38,10 @@ CUDA_VISIBLE_DEVICES=0 python embedding_mimic4.py --eval_method svm \
 
 ```bash
 CUDA_VISIBLE_DEVICES=0 python evaluate_multimodal.py
+```
+
+
+### Comparison with baselines
+```
+CUDA_VISIBLE_DEVICES=0 python train_mimic4.py --modeltype TS --task ihm --model_name cnn
 ```

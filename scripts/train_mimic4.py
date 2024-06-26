@@ -25,7 +25,7 @@ torch.set_float32_matmul_precision("high")
 
 
 '''
-CUDA_VISIBLE_DEVICES=1 python train_mimic4.py --modeltype TS --task ihm --model_name mtand
+CUDA_VISIBLE_DEVICES=1 python train_mimic4.py --task ihm --model_name mtand
 '''
 parser = ArgumentParser(description="PyTorch Lightning EHR Model")
 parser.add_argument("--task", type=str, default="pheno",

@@ -51,15 +51,15 @@ if __name__ == "__main__":
     cxr_feat = data_dict["train_cxr_embs"]
     cxr_feat = rearrange(cxr_feat, "b n d -> (b n) d")
 
-    # print(f"Loaded TS features from {pkl_file}")
-    # save_proto_path = args.save_dir / f"mimic4_pretrain" / f"ts_proto_{args.n_proto}.pkl"
-    # cluster(args, ts_feat, save_proto_path)
+    print(f"Loaded TS features from {pkl_file}")
+    save_proto_path = args.save_dir / f"mimic4_pretrain" / f"ts_proto_{args.n_proto}.pkl"
+    cluster(args, ts_feat, save_proto_path)
 
-    # print(f"Loaded CXR features from {pkl_file}")
-    # save_proto_path = args.save_dir / f"mimic4_pretrain" / f"cxr_proto_{args.n_proto}.pkl"
-    # cluster(args, cxr_feat, save_proto_path)
+    print(f"Loaded CXR features from {pkl_file}")
+    save_proto_path = args.save_dir / f"mimic4_pretrain" / f"cxr_proto_{args.n_proto}.pkl"
+    cluster(args, cxr_feat, save_proto_path)
 
-    # TODO: another idea is to use all embeddings for clustering
-    feat = np.concatenate([ts_feat, cxr_feat], axis=0)
-    save_proto_path = args.save_dir / f"mimic4_pretrain" / f"mm_proto_{args.n_proto}.pkl"
-    cluster(args, feat, save_proto_path)
+    # # TODO: another idea is to use all embeddings for clustering
+    # feat = np.concatenate([ts_feat, cxr_feat], axis=0)
+    # save_proto_path = args.save_dir / f"mimic4_pretrain" / f"mm_proto_{args.n_proto}.pkl"
+    # cluster(args, feat, save_proto_path)

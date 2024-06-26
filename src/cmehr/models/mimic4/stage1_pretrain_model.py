@@ -48,7 +48,7 @@ class MIMIC4PretrainModule(LightningModule):
                  ts_learning_rate: float = 4e-4,
                  embed_time: int = 64,
                  embed_dim: int = 128,
-                 num_imgs: int = 12,
+                 num_imgs: int = 5,
                  period_length: float = 100,
                  cm_loss_weight: float = 0.,
                  *args,
@@ -74,7 +74,7 @@ class MIMIC4PretrainModule(LightningModule):
         # for param in self.img_encoder.parameters():
         #     param.requires_grad = False
         self.img_embed_dim = 512
-        self.img_proj_layer = nn.Linear(self.img_embed_dim, self.embed_dim // 2)
+        self.img_proj_layer = nn.Linear(self.img_embed_dim, self.embed_dim)
 
         '''
         change this into two mtand:
@@ -82,10 +82,10 @@ class MIMIC4PretrainModule(LightningModule):
         - CXR mtand: 5 time points
         '''
 
-        self.ts_conv1 = nn.Conv1d(self.orig_reg_d_ts, self.embed_dim, kernel_size=1)
+        self.ts_conv1 = nn.Conv1d(self.orig_d_ts, self.embed_dim, kernel_size=1)
         self.img_conv1 = nn.Conv1d(self.embed_dim, self.embed_dim, kernel_size=1)
 
-        depth = 3
+        depth = 10
         self.ts_dilated_conv = DilatedConvEncoder(
             in_channels=self.embed_dim, 
             channels=[self.embed_dim] * depth + [self.embed_dim], 
@@ -254,8 +254,8 @@ class MIMIC4PretrainModule(LightningModule):
     def forward(self, batch: Dict):
         # TODO: consider the reg_ts in the frequency domain ...
         batch_size = batch["ts"].size(0)
-        reg_ts = batch["reg_ts"]
-        
+        reg_ts = batch["reg_ts"][..., :self.orig_d_ts]
+
         # create two augmentation view for regular TS
         ts_aug_1, ts_aug_2, crop_l = self.aug_reg_ts(reg_ts)
 
@@ -293,8 +293,8 @@ class MIMIC4PretrainModule(LightningModule):
         cxr_feats = self.img_encoder(reg_imgs).img_embedding
         cxr_embs = self.img_proj_layer(cxr_feats)
         cxr_embs = rearrange(cxr_embs, "(b n) d -> b n d", b=batch_size)
-        cxr_mask = batch["reg_imgs_mask"].unsqueeze(-1).repeat(1, 1, cxr_embs.size(-1))
-        cxr_embs = torch.cat((cxr_embs, cxr_mask), 2)
+        # cxr_mask = batch["reg_imgs_mask"].unsqueeze(-1).repeat(1, 1, cxr_embs.size(-1))
+        # cxr_embs = torch.cat((cxr_embs, cxr_mask), 2)
         img_feat = self.img_conv1(cxr_embs.permute(0, 2, 1))
         img_emb = self.img_dilated_conv(img_feat).permute(0, 2, 1)
         num_imgs = img_emb.size(1)

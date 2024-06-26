@@ -12,7 +12,7 @@ from cmehr.paths import *
 import ipdb
 
 '''
-CUDA_VISIBLE_DEVICES=1 python embedding_mimic4.py
+CUDA_VISIBLE_DEVICES=3 python embedding_mimic4.py
 '''
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 torch.backends.cudnn.deterministic = True  # type: ignore
@@ -31,7 +31,7 @@ parser.add_argument("--emb_dir", type=str,
 parser.add_argument("--ts_proto_path", type=str, 
                     default=str(ROOT_PATH / "prototype_results/mimic4_pretrain/ts_proto_16.pkl"))
 parser.add_argument("--cxr_proto_path", type=str, 
-                    default=str(ROOT_PATH / "prototype_results/mimic4_pretrain/ts_proto_16.pkl"))
+                    default=str(ROOT_PATH / "prototype_results/mimic4_pretrain/cxr_proto_16.pkl"))
 args = parser.parse_args()
 
 
@@ -106,55 +106,14 @@ def cli_main():
 
     data_dict = load_pkl(os.path.join(args.emb_dir, f"{args.task}_embs.pkl"))
 
-    # # For TS data
-    # n_proto = int(args.ts_proto_path.split("/")[-1].replace(".pkl", "").split("_")[-1])
-    # model = PANTHER(proto_path=args.ts_proto_path, out_size=n_proto).to(device)
-    # proto_emb_path = os.path.join(args.emb_dir, f"{args.task}_ts_proto_{n_proto}_embs.pkl")
-    # if not os.path.exists(proto_emb_path):
-    #     save_agg_embs(data_dict["train_ts_embs"], data_dict["train_label"], 
-    #                   data_dict["val_ts_embs"], data_dict["val_label"], 
-    #                   data_dict["test_ts_embs"], data_dict["test_label"], 
-    #                   model, proto_emb_path)
-
-    # loaded_data = load_pkl(proto_emb_path)
-    # train_X = loaded_data["train_X"]
-    # train_Y = loaded_data["train_Y"]
-    # val_X = loaded_data["val_X"]
-    # val_Y = loaded_data["val_Y"]
-    # test_X = loaded_data["test_X"]
-    # test_Y = loaded_data["test_Y"]
-    # evaluate_reps(args, train_X, train_Y, val_X, val_Y, test_X, test_Y, n_proto=n_proto)
-
-    # # For CXR data
-    # n_proto = int(args.cxr_proto_path.split("/")[-1].replace(".pkl", "").split("_")[-1])
-    # model = PANTHER(proto_path=args.cxr_proto_path, out_size=n_proto).to(device)
-    # proto_emb_path = os.path.join(args.emb_dir, f"{args.task}_cxr_proto_{n_proto}_embs.pkl")
-    # if not os.path.exists(proto_emb_path):
-    #     save_agg_embs(data_dict["train_cxr_embs"], data_dict["train_label"], 
-    #                   data_dict["val_cxr_embs"], data_dict["val_label"], 
-    #                   data_dict["test_cxr_embs"], data_dict["test_label"], 
-    #                   model, proto_emb_path)
-
-    # loaded_data = load_pkl(proto_emb_path)
-    # train_X = loaded_data["train_X"]s
-    # train_Y = loaded_data["train_Y"]
-    # val_X = loaded_data["val_X"]
-    # val_Y = loaded_data["val_Y"]
-    # test_X = loaded_data["test_X"]
-    # test_Y = loaded_data["test_Y"]
-    # evaluate_reps(args, train_X, train_Y, val_X, val_Y, test_X, test_Y, n_proto=n_proto)
-
-    # MM
+    # For TS data
     n_proto = int(args.ts_proto_path.split("/")[-1].replace(".pkl", "").split("_")[-1])
     model = PANTHER(proto_path=args.ts_proto_path, out_size=n_proto).to(device)
-    proto_emb_path = os.path.join(args.emb_dir, f"{args.task}_mm_proto_{n_proto}_embs.pkl")
+    proto_emb_path = os.path.join(args.emb_dir, f"{args.task}_ts_proto_{n_proto}_embs.pkl")
     if not os.path.exists(proto_emb_path):
-        train_embs = np.concatenate([data_dict["train_ts_embs"], data_dict["train_cxr_embs"]], axis=1)
-        val_embs = np.concatenate([data_dict["val_ts_embs"], data_dict["val_cxr_embs"]], axis=1)
-        test_embs = np.concatenate([data_dict["test_ts_embs"], data_dict["test_cxr_embs"]], axis=1)
-        save_agg_embs(train_embs, data_dict["train_label"], 
-                      val_embs, data_dict["val_label"], 
-                      test_embs, data_dict["test_label"], 
+        save_agg_embs(data_dict["train_ts_embs"], data_dict["train_label"], 
+                      data_dict["val_ts_embs"], data_dict["val_label"], 
+                      data_dict["test_ts_embs"], data_dict["test_label"], 
                       model, proto_emb_path)
 
     loaded_data = load_pkl(proto_emb_path)
@@ -165,6 +124,47 @@ def cli_main():
     test_X = loaded_data["test_X"]
     test_Y = loaded_data["test_Y"]
     evaluate_reps(args, train_X, train_Y, val_X, val_Y, test_X, test_Y, n_proto=n_proto)
+
+    # For CXR data
+    n_proto = int(args.cxr_proto_path.split("/")[-1].replace(".pkl", "").split("_")[-1])
+    model = PANTHER(proto_path=args.cxr_proto_path, out_size=n_proto).to(device)
+    proto_emb_path = os.path.join(args.emb_dir, f"{args.task}_cxr_proto_{n_proto}_embs.pkl")
+    if not os.path.exists(proto_emb_path):
+        save_agg_embs(data_dict["train_cxr_embs"], data_dict["train_label"], 
+                      data_dict["val_cxr_embs"], data_dict["val_label"], 
+                      data_dict["test_cxr_embs"], data_dict["test_label"], 
+                      model, proto_emb_path)
+
+    loaded_data = load_pkl(proto_emb_path)
+    train_X = loaded_data["train_X"]
+    train_Y = loaded_data["train_Y"]
+    val_X = loaded_data["val_X"]
+    val_Y = loaded_data["val_Y"]
+    test_X = loaded_data["test_X"]
+    test_Y = loaded_data["test_Y"]
+    evaluate_reps(args, train_X, train_Y, val_X, val_Y, test_X, test_Y, n_proto=n_proto)
+
+    # MM
+    # n_proto = int(args.ts_proto_path.split("/")[-1].replace(".pkl", "").split("_")[-1])
+    # model = PANTHER(proto_path=args.ts_proto_path, out_size=n_proto).to(device)
+    # proto_emb_path = os.path.join(args.emb_dir, f"{args.task}_mm_proto_{n_proto}_embs.pkl")
+    # if not os.path.exists(proto_emb_path):
+    #     train_embs = np.concatenate([data_dict["train_ts_embs"], data_dict["train_cxr_embs"]], axis=1)
+    #     val_embs = np.concatenate([data_dict["val_ts_embs"], data_dict["val_cxr_embs"]], axis=1)
+    #     test_embs = np.concatenate([data_dict["test_ts_embs"], data_dict["test_cxr_embs"]], axis=1)
+    #     save_agg_embs(train_embs, data_dict["train_label"], 
+    #                   val_embs, data_dict["val_label"], 
+    #                   test_embs, data_dict["test_label"], 
+    #                   model, proto_emb_path)
+
+    # loaded_data = load_pkl(proto_emb_path)
+    # train_X = loaded_data["train_X"]
+    # train_Y = loaded_data["train_Y"]
+    # val_X = loaded_data["val_X"]
+    # val_Y = loaded_data["val_Y"]
+    # test_X = loaded_data["test_X"]
+    # test_Y = loaded_data["test_Y"]
+    # evaluate_reps(args, train_X, train_Y, val_X, val_Y, test_X, test_Y, n_proto=n_proto)
 
 
 if __name__ == "__main__":

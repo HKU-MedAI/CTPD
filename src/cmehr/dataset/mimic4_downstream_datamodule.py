@@ -22,7 +22,7 @@ class MIMIC4_Dataset(Dataset):
                  img_transform=get_transforms(is_train=False),
                  modeltype: str = "TS_CXR",
                  tt_max: int = 48,
-                 num_imgs: int = 12,
+                 num_imgs: int = 5,
                  first_nrows: Optional[int] = None):
         super().__init__()
 
@@ -56,16 +56,18 @@ class MIMIC4_Dataset(Dataset):
         label = data_detail["label"]
         ts_tt = data_detail["ts_tt"]
         reg_ts = data_detail["reg_ts"]
-        cxr_path = data_detail["cxr_path"]
-        cxr_time = data_detail["cxr_time"]
 
         if "CXR" in self.modeltype:
+            cxr_path = data_detail["cxr_path"]
+            cxr_time = data_detail["cxr_time"]
             cxr_imgs = []
             for p in cxr_path:
                 img = Image.open(os.path.join(
                     self.mimic_cxr_dir, p)).convert("RGB")
                 img = self.img_transform(img)
                 cxr_imgs.append(img)
+            cxr_time = [t/self.tt_max for t in cxr_time]
+            cxr_time_mask = [1] * len(cxr_time)
 
         label = torch.tensor(label, dtype=torch.long)
         reg_ts = torch.tensor(reg_ts, dtype=torch.float)
@@ -73,10 +75,22 @@ class MIMIC4_Dataset(Dataset):
         ts_mask = torch.tensor(ts_mask, dtype=torch.long)
         # This is used to normalize the timestamps
         ts_tt = torch.tensor([t/self.tt_max for t in ts_tt], dtype=torch.float)
-        cxr_time = [t/self.tt_max for t in cxr_time]
-        cxr_time_mask = [1] * len(cxr_time)
 
         if 'CXR' in self.modeltype:
+            C, H, W = cxr_imgs[0].shape
+            reg_img = torch.zeros(self.num_imgs, C, H, W)
+            reg_img_mask = torch.zeros(self.num_imgs)
+            cxr_time_indices = (np.array(cxr_time) * self.num_imgs).astype(int)
+            previous_img = cxr_imgs[0]
+            for i in range(self.num_imgs):
+                cur_indices = np.where(cxr_time_indices == i)[0]
+                if len(cur_indices) == 0:
+                    reg_img[i] = previous_img
+                else:
+                    reg_img[i] = cxr_imgs[np.random.choice(cur_indices)]
+                    previous_img = reg_img[i]
+                    reg_img_mask[i] = 1
+
             if len(cxr_imgs) < self.num_imgs:
                 num_pad_imgs = self.num_imgs - len(cxr_imgs)
                 padded_imgs = [torch.zeros_like(cxr_imgs[0])] * num_pad_imgs
@@ -98,7 +112,9 @@ class MIMIC4_Dataset(Dataset):
                     "label": label,
                     "cxr_imgs": cxr_imgs[-self.num_imgs:],
                     "cxr_time": cxr_time[-self.num_imgs:],
-                    "cxr_time_mask": cxr_time_mask[-self.num_imgs:]
+                    "cxr_time_mask": cxr_time_mask[-self.num_imgs:],
+                    "reg_img": reg_img,
+                    "reg_img_mask": reg_img_mask
                     }
 
     def __len__(self):
@@ -123,6 +139,8 @@ def TSCXRIrgcollate_fn(batch):
             [example['cxr_time'] for example in batch])
         cxr_time_mask = torch.stack(
             [example['cxr_time_mask'] for example in batch])
+        reg_imgs = torch.stack([example['reg_img'] for example in batch])
+        reg_imgs_mask = torch.stack([example['reg_img_mask'] for example in batch])
         return {
             "name": name,
             "ts": ts_input_sequences,
@@ -132,6 +150,8 @@ def TSCXRIrgcollate_fn(batch):
             "cxr_imgs": cxr_imgs,
             "cxr_time": cxr_time,
             "cxr_time_mask": cxr_time_mask,
+            "reg_imgs": reg_imgs,
+            "reg_imgs_mask": reg_imgs_mask,
             "label": label
         }
     else:
@@ -218,23 +238,21 @@ class MIMIC4DataModule(LightningDataModule):
         return dataloader
 
 if __name__ == "__main__":
-    dataset = MIMIC4_Dataset(
-        mimic_cxr_dir=str(MIMIC_CXR_JPG_PATH),
-        file_path=str(ROOT_PATH / "output_mimic4/TS_CXR/ihm"),
-        split="val",
-        first_nrows=None
-    )
-    sample = dataset[48]
-
-    # datamodule = MIMIC4DataModule(
-    #     file_path=str(ROOT_PATH / "output_mimic4/TS_CXR/pheno"),
-    #     tt_max=48
+    # dataset = MIMIC4_Dataset(
+    #     mimic_cxr_dir=str(MIMIC_CXR_JPG_PATH),
+    #     file_path=str(ROOT_PATH / "output_mimic4/TS_CXR/ihm"),
+    #     split="val",
+    #     first_nrows=None
     # )
-    # batch = dict()
-    # for batch in datamodule.val_dataloader():
-    #     break
-    # for k, v in batch.items():
-    #     print(f"{k}: ", v.shape)
+    # sample = dataset[48]
+
+    datamodule = MIMIC4DataModule(
+        file_path=str(ROOT_PATH / "output_mimic4/TS_CXR/pheno"),
+        period_length=48
+    )
+    batch = dict()
+    for batch in datamodule.val_dataloader():
+        break
 
     ipdb.set_trace()
     # """

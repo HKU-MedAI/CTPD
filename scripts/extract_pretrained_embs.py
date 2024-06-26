@@ -6,6 +6,7 @@ import numpy as np
 import torch.nn.functional as F
 from torch.utils.data import DataLoader
 from lightning import seed_everything
+from einops import rearrange
 from cmehr.dataset.mimic4_pretraining_datamodule import MIMIC4MultimodalDataModule
 from cmehr.dataset.mimic4_downstream_datamodule import MIMIC4DataModule
 from cmehr.models.mimic4.stage1_pretrain_model import MIMIC4PretrainModule
@@ -15,18 +16,18 @@ from cmehr.utils.evaluation_utils import eval_svm, eval_linear
 import ipdb
 
 '''
-CUDA_VISIBLE_DEVICES=0 python extract_pretrained_embs.py \
-    --ckpt_path /home/fywang/Documents/EHR_codebase/MMMSPG/log/ckpts/mimic4_pretrain_2024-06-20_17-59-46/epoch=40-step=8446.ckpt
+CUDA_VISIBLE_DEVICES=3 python extract_pretrained_embs.py \
+    --ckpt_path /home/fywang/Documents/EHR_codebase/MMMSPG/log/ckpts/mimic4_pretrain_2024-06-25_17-48-47/epoch=93-step=19364.ckpt
 '''
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 torch.backends.cudnn.deterministic = True  # type: ignore
-torch.backends.cudnn.benchmark = True  # type: ignore
+torch.backends.cudnn.benchmark = True      # type: ignore
 torch.set_float32_matmul_precision("high")
 
 
 parser = argparse.ArgumentParser(description="Evaluate MIMIC IV")
-parser.add_argument("--batch_size", type=int, default=12)
+parser.add_argument("--batch_size", type=int, default=8)
 parser.add_argument("--num_workers", type=int, default=4)
 parser.add_argument("--first_nrows", type=int, default=-1)
 parser.add_argument("--ckpt_path", type=str, 
@@ -43,18 +44,36 @@ def extract_pretrain_embs(model: MIMIC4PretrainModule, dataloader: DataLoader):
     all_cxr_embs = []
     for _, batch in tqdm(enumerate(dataloader), total=len(dataloader), desc="Encoding data"):
         # Get the embeddings for the time series data
-        ts = batch["ts"].to(device)
-        ts_mask = batch["ts_mask"].to(device)
-        ts_tt = batch["ts_tt"].to(device)
-        proj_ts_embs = model.forward_ts_mtand(ts, ts_mask, ts_tt)
-        proj_ts_embs = F.normalize(proj_ts_embs, dim=-1)
+        # ts = batch["ts"].to(device)
+        # ts_mask = batch["ts_mask"].to(device)
+        # ts_tt = batch["ts_tt"].to(device)
+        # proj_ts_embs = model.forward_ts_mtand(ts, ts_mask, ts_tt)
+        # proj_ts_embs = F.normalize(proj_ts_embs, dim=-1)
 
-        cxr_imgs = batch["cxr_imgs"].to(device)
-        cxr_time = batch["cxr_time"].to(device)
-        cxr_time_mask = batch["cxr_time_mask"].to(device)
-        proj_img_embs = model.extract_img_embs(cxr_imgs, cxr_time, cxr_time_mask)
-        # use the last time step
-        proj_img_embs = F.normalize(proj_img_embs, dim=-1)
+        reg_ts = batch["reg_ts"].to(device)
+        feat_ts = model.ts_conv1(reg_ts.permute(0, 2, 1))
+        proj_ts_embs = model.ts_dilated_conv(feat_ts).permute(0, 2, 1)
+
+        batch_size = reg_ts.size(0)
+        reg_imgs = batch["reg_imgs"].to(device)
+        reg_imgs = rearrange(reg_imgs, "b n c h w -> (b n) c h w")
+        cxr_feats = model.img_encoder(reg_imgs).img_embedding
+        cxr_embs = model.img_proj_layer(cxr_feats)
+        cxr_embs = rearrange(cxr_embs, "(b n) d -> b n d", b=batch_size)
+        reg_imgs_mask = batch["reg_imgs_mask"].to(device)
+        cxr_mask = reg_imgs_mask.unsqueeze(-1).repeat(1, 1, cxr_embs.size(-1))
+        cxr_embs = torch.cat((cxr_embs, cxr_mask), 2)
+        img_feat = model.img_conv1(cxr_embs.permute(0, 2, 1))
+        proj_img_embs = model.img_dilated_conv(img_feat).permute(0, 2, 1)
+
+        del reg_ts, feat_ts, reg_imgs, cxr_feats, cxr_embs, reg_imgs_mask, img_feat
+
+        # cxr_imgs = batch["cxr_imgs"].to(device)
+        # cxr_time = batch["cxr_time"].to(device)
+        # cxr_time_mask = batch["cxr_time_mask"].to(device)
+        # proj_img_embs = model.extract_img_embs(cxr_imgs, cxr_time, cxr_time_mask)
+        # # use the last time step
+        # proj_img_embs = F.normalize(proj_img_embs, dim=-1)
 
         all_ts_embs.append(proj_ts_embs.cpu().numpy())
         all_cxr_embs.append(proj_img_embs.cpu().numpy())
@@ -72,19 +91,38 @@ def extract_downstream_embs(model: MIMIC4PretrainModule, dataloader: DataLoader,
     all_cxr_embs = []
     all_label = []
     for _, batch in tqdm(enumerate(dataloader), total=len(dataloader), desc="Encoding data"):
-        # Get the embeddings for the time series data
-        ts = batch["ts"].to(device)
-        ts_mask = batch["ts_mask"].to(device)
-        ts_tt = batch["ts_tt"].to(device)
-        proj_ts_embs = model.forward_ts_mtand(ts, ts_mask, ts_tt)
-        proj_ts_embs = F.normalize(proj_ts_embs, dim=-1)
 
-        cxr_imgs = batch["cxr_imgs"].to(device)
-        cxr_time = batch["cxr_time"].to(device)
-        cxr_time_mask = batch["cxr_time_mask"].to(device)
-        proj_img_embs = model.extract_img_embs(cxr_imgs, cxr_time, cxr_time_mask)
-        # use the last time step
-        proj_img_embs = F.normalize(proj_img_embs, dim=-1)
+        # # Get the embeddings for the time series data
+        # ts = batch["ts"].to(device)
+        # ts_mask = batch["ts_mask"].to(device)
+        # ts_tt = batch["ts_tt"].to(device)
+        # proj_ts_embs = model.forward_ts_mtand(ts, ts_mask, ts_tt)
+        # proj_ts_embs = F.normalize(proj_ts_embs, dim=-1)
+
+        # cxr_imgs = batch["cxr_imgs"].to(device)
+        # cxr_time = batch["cxr_time"].to(device)
+        # cxr_time_mask = batch["cxr_time_mask"].to(device)
+        # proj_img_embs = model.extract_img_embs(cxr_imgs, cxr_time, cxr_time_mask)
+        # # use the last time step
+        # proj_img_embs = F.normalize(proj_img_embs, dim=-1)
+
+        reg_ts = batch["reg_ts"].to(device)
+        feat_ts = model.ts_conv1(reg_ts.permute(0, 2, 1))
+        proj_ts_embs = model.ts_dilated_conv(feat_ts).permute(0, 2, 1)
+
+        batch_size = reg_ts.size(0)
+        reg_imgs = batch["reg_imgs"].to(device)
+        reg_imgs = rearrange(reg_imgs, "b n c h w -> (b n) c h w")
+        cxr_feats = model.img_encoder(reg_imgs).img_embedding
+        cxr_embs = model.img_proj_layer(cxr_feats)
+        cxr_embs = rearrange(cxr_embs, "(b n) d -> b n d", b=batch_size)
+        reg_imgs_mask = batch["reg_imgs_mask"].to(device)
+        cxr_mask = reg_imgs_mask.unsqueeze(-1).repeat(1, 1, cxr_embs.size(-1))
+        cxr_embs = torch.cat((cxr_embs, cxr_mask), 2)
+        img_feat = model.img_conv1(cxr_embs.permute(0, 2, 1))
+        proj_img_embs = model.img_dilated_conv(img_feat).permute(0, 2, 1)
+
+        del reg_ts, feat_ts, reg_imgs, cxr_feats, cxr_embs, reg_imgs_mask, img_feat
 
         all_ts_embs.append(proj_ts_embs.cpu().numpy())
         all_cxr_embs.append(proj_img_embs.cpu().numpy())

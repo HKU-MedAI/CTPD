@@ -25,6 +25,7 @@ pip install -e .
 - [x] merge dataset preprocessing code ... maybe write a README.md to illustrate how to formulate the dataset 
 - [ ] explore frequency prototypes for time series.
 - [ ] problem: the feature in temporal dimension is very similar.
+- [ ] TODO: maybe construct a prototype map ...
 
 ### Results
 XXX
