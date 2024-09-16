@@ -151,6 +151,7 @@ class MIMIC4MultimodalDataset(Dataset):
 def custom_collate_fn(batch):
     """ Collate fn for irregular time series and notes """
 
+    name = [example['idx'] for example in batch]
     ts_input_sequences = pad_sequence(
         [example['ts'] for example in batch], batch_first=True, padding_value=0)
     ts_mask_sequences = pad_sequence(
@@ -168,6 +169,7 @@ def custom_collate_fn(batch):
     reg_imgs_mask = torch.stack([example['reg_img_mask'] for example in batch])
 
     return {
+        "name": name,
         "ts": ts_input_sequences,
         "ts_mask": ts_mask_sequences,
         "ts_tt": ts_tt,

@@ -16,7 +16,7 @@ from cmehr.utils.evaluation_utils import eval_svm, eval_linear
 import ipdb
 
 '''
-CUDA_VISIBLE_DEVICES=3 python extract_pretrained_embs.py \
+CUDA_VISIBLE_DEVICES=1 python extract_pretrained_embs.py \
     --ckpt_path /home/fywang/Documents/EHR_codebase/MMMSPG/log/ckpts/mimic4_pretrain_2024-06-25_17-48-47/epoch=93-step=19364.ckpt
 '''
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -27,7 +27,7 @@ torch.set_float32_matmul_precision("high")
 
 
 parser = argparse.ArgumentParser(description="Evaluate MIMIC IV")
-parser.add_argument("--batch_size", type=int, default=8)
+parser.add_argument("--batch_size", type=int, default=4)
 parser.add_argument("--num_workers", type=int, default=4)
 parser.add_argument("--first_nrows", type=int, default=-1)
 parser.add_argument("--ckpt_path", type=str, 
@@ -42,6 +42,7 @@ def extract_pretrain_embs(model: MIMIC4PretrainModule, dataloader: DataLoader):
     # encode training data
     all_ts_embs = []
     all_cxr_embs = []
+    all_name = []
     for _, batch in tqdm(enumerate(dataloader), total=len(dataloader), desc="Encoding data"):
         # Get the embeddings for the time series data
         # ts = batch["ts"].to(device)
@@ -49,7 +50,7 @@ def extract_pretrain_embs(model: MIMIC4PretrainModule, dataloader: DataLoader):
         # ts_tt = batch["ts_tt"].to(device)
         # proj_ts_embs = model.forward_ts_mtand(ts, ts_mask, ts_tt)
         # proj_ts_embs = F.normalize(proj_ts_embs, dim=-1)
-
+        all_name = all_name.extend(batch["name"])
         reg_ts = batch["reg_ts"].to(device)
         feat_ts = model.ts_conv1(reg_ts.permute(0, 2, 1))
         proj_ts_embs = model.ts_dilated_conv(feat_ts).permute(0, 2, 1)
@@ -81,7 +82,7 @@ def extract_pretrain_embs(model: MIMIC4PretrainModule, dataloader: DataLoader):
     all_ts_embs = np.concatenate(all_ts_embs, axis=0)
     all_cxr_embs = np.concatenate(all_cxr_embs, axis=0)
 
-    return all_ts_embs, all_cxr_embs
+    return all_ts_embs, all_cxr_embs, all_name
 
 
 @torch.no_grad()
@@ -90,6 +91,7 @@ def extract_downstream_embs(model: MIMIC4PretrainModule, dataloader: DataLoader,
     all_ts_embs = []
     all_cxr_embs = []
     all_label = []
+    all_name = []
     for _, batch in tqdm(enumerate(dataloader), total=len(dataloader), desc="Encoding data"):
 
         # # Get the embeddings for the time series data
@@ -105,6 +107,8 @@ def extract_downstream_embs(model: MIMIC4PretrainModule, dataloader: DataLoader,
         # proj_img_embs = model.extract_img_embs(cxr_imgs, cxr_time, cxr_time_mask)
         # # use the last time step
         # proj_img_embs = F.normalize(proj_img_embs, dim=-1)
+
+        all_name = all_name.extend(batch["name"])
 
         reg_ts = batch["reg_ts"].to(device)
         feat_ts = model.ts_conv1(reg_ts.permute(0, 2, 1))
@@ -132,7 +136,7 @@ def extract_downstream_embs(model: MIMIC4PretrainModule, dataloader: DataLoader,
     all_cxr_embs = np.concatenate(all_cxr_embs, axis=0)
     all_label = np.concatenate(all_label, axis=0)
 
-    return all_ts_embs, all_cxr_embs, all_label
+    return all_ts_embs, all_cxr_embs, all_label, all_name
 
 
 def cli_main():
@@ -162,10 +166,11 @@ def cli_main():
             batch_size=args.batch_size,
             num_workers=args.num_workers,
             first_nrows=args.first_nrows)
-        train_ts_embs, train_cxr_embs = extract_pretrain_embs(model, dm.train_dataloader())
+        train_ts_embs, train_cxr_embs, train_names = extract_pretrain_embs(model, dm.train_dataloader())
         save_dict = {
             "train_ts_embs": train_ts_embs,
             "train_cxr_embs": train_cxr_embs,
+            "train_names": train_names
         }
         save_pkl(os.path.join(args.save_feat_dir, "self_supervised_embs.pkl"), save_dict)
     
@@ -181,19 +186,22 @@ def cli_main():
             batch_size=args.batch_size,
             num_workers=args.num_workers,
             first_nrows=args.first_nrows)
-        train_ts_embs, train_cxr_embs, train_label = extract_downstream_embs(model, dm.train_dataloader())
-        val_ts_embs, val_cxr_embs, val_label = extract_downstream_embs(model, dm.val_dataloader())
-        test_ts_embs, test_cxr_embs, test_label = extract_downstream_embs(model, dm.test_dataloader())
+        train_ts_embs, train_cxr_embs, train_label, train_names = extract_downstream_embs(model, dm.train_dataloader())
+        val_ts_embs, val_cxr_embs, val_label, val_names = extract_downstream_embs(model, dm.val_dataloader())
+        test_ts_embs, test_cxr_embs, test_label, test_names = extract_downstream_embs(model, dm.test_dataloader())
         save_dict = {
             "train_ts_embs": train_ts_embs,
             "train_cxr_embs": train_cxr_embs,
             "train_label": train_label,
+            "train_names": train_names,
             "val_ts_embs": val_ts_embs,
             "val_cxr_embs": val_cxr_embs,
             "val_label": val_label,
+            "val_names": val_names,
             "test_ts_embs": test_ts_embs,
             "test_cxr_embs": test_cxr_embs,
             "test_label": test_label,
+            "test_names": test_names,
         }
         save_pkl(os.path.join(args.save_feat_dir, "ihm_embs.pkl"), save_dict)
     

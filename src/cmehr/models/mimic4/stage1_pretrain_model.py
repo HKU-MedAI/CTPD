@@ -85,7 +85,7 @@ class MIMIC4PretrainModule(LightningModule):
         self.ts_conv1 = nn.Conv1d(self.orig_d_ts, self.embed_dim, kernel_size=1)
         self.img_conv1 = nn.Conv1d(self.embed_dim, self.embed_dim, kernel_size=1)
 
-        depth = 10
+        depth = 3
         self.ts_dilated_conv = DilatedConvEncoder(
             in_channels=self.embed_dim, 
             channels=[self.embed_dim] * depth + [self.embed_dim], 
