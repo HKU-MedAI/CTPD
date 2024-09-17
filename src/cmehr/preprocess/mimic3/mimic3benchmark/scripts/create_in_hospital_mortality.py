@@ -28,6 +28,7 @@ def process_partition(args, partition, eps=1e-6, n_hours=48):
                 # empty label file
                 if label_df.shape[0] == 0:
                     continue
+                icustay = label_df['Icustay'].iloc[0]
 
                 mortality = int(label_df.iloc[0]["Mortality"])
                 los = 24.0 * label_df.iloc[0]['Length of Stay']  # in hours
@@ -58,7 +59,7 @@ def process_partition(args, partition, eps=1e-6, n_hours=48):
                     for line in ts_lines:
                         outfile.write(line)
 
-                xy_pairs.append((output_ts_filename, mortality))
+                xy_pairs.append((output_ts_filename, icustay, mortality))
 
     print("Number of created samples:", len(xy_pairs))
     if partition == "train":
@@ -67,9 +68,9 @@ def process_partition(args, partition, eps=1e-6, n_hours=48):
         xy_pairs = sorted(xy_pairs)
 
     with open(os.path.join(output_dir, "listfile.csv"), "w") as listfile:
-        listfile.write('stay,y_true\n')
-        for (x, y) in xy_pairs:
-            listfile.write('{},{:d}\n'.format(x, y))
+        listfile.write('stay,period_length,stay_id,y_true\n')
+        for (x, icustay, y) in xy_pairs:
+            listfile.write('{},0,{},{:d}\n'.format(x, icustay, y))
 
 
 def main():

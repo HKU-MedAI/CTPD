@@ -94,7 +94,7 @@ class DecompensationReader(Reader):
 
 
 class InHospitalMortalityReader(Reader):
-    def __init__(self, dataset_dir, listfile=None, period_length=48.0):
+    def __init__(self, dataset_dir, listfile=None, period_length=48.0, columns=[]):
         """ Reader for in-hospital moratality prediction task.
 
         :param dataset_dir:   Directory where timeseries files are stored.
@@ -104,17 +104,23 @@ class InHospitalMortalityReader(Reader):
         """
         Reader.__init__(self, dataset_dir, listfile)
         self._data = [line.split(',') for line in self._data]
-        self._data = [(x, int(y)) for (x, y) in self._data]
+        self._data = [(x, int(y)) for (x, _, _, y) in self._data]
         self._period_length = period_length
+        self.columns = columns
 
     def _read_timeseries(self, ts_filename):
         ret = []
         with open(os.path.join(self._dataset_dir, ts_filename), "r") as tsfile:
             header = tsfile.readline().strip().split(',')
+            if len(self.columns) > 0:
+                indices = [header.index(column)
+                           for column in ["Hours"] + self.columns]
+            else:
+                indices = [i for i in range(len(header))]
             assert header[0] == "Hours"
             for line in tsfile:
                 mas = line.strip().split(',')
-                ret.append(np.array(mas))
+                ret.append(np.array(mas)[indices])
         return (np.stack(ret), header)
 
     def read_example(self, index):
@@ -136,8 +142,7 @@ class InHospitalMortalityReader(Reader):
             name: Name of the sample.
         """
         if index < 0 or index >= len(self._data):
-            raise ValueError(
-                "Index must be from 0 (inclusive) to number of lines (exclusive).")
+            raise ValueError("Index must be from 0 (inclusive) to number of lines (exclusive).")
 
         name = self._data[index][0]
         t = self._period_length
@@ -211,7 +216,7 @@ class LengthOfStayReader(Reader):
 
 
 class PhenotypingReader(Reader):
-    def __init__(self, dataset_dir, listfile=None):
+    def __init__(self, dataset_dir, listfile=None, columns=[]):
         """ Reader for phenotype classification task.
 
         :param dataset_dir: Directory where timeseries files are stored.
@@ -220,20 +225,58 @@ class PhenotypingReader(Reader):
         """
         Reader.__init__(self, dataset_dir, listfile)
         self._data = [line.split(',') for line in self._data]
-        self._data = [(mas[0], float(mas[1]), list(map(int, mas[2:])))
-                      for mas in self._data]
+        self.data_map = {
+            mas[0]: {
+                'labels': list(map(int, mas[3:])),
+                'stay_id': float(mas[2]),
+                'time': float(mas[1]),
+                }
+                for mas in self._data
+        }
 
-    def _read_timeseries(self, ts_filename):
+        self._data = [(mas[0], float(mas[1]), list(map(int, mas[3:]))) for mas in self._data]
+        self.columns = columns
+
+    def _read_timeseries(self, ts_filename, time_bound=None):
         ret = []
         with open(os.path.join(self._dataset_dir, ts_filename), "r") as tsfile:
             header = tsfile.readline().strip().split(',')
             assert header[0] == "Hours"
+            if len(self.columns) > 0:
+                indices = [header.index(column)
+                           for column in ["Hours"] + self.columns]
+            else:
+                indices = [i for i in range(len(header))]
             for line in tsfile:
                 mas = line.strip().split(',')
-                ret.append(np.array(mas))
+                if time_bound is not None:
+                    t = float(mas[0])
+                    if t > time_bound + 1e-6:
+                        break
+                ret.append(np.array(mas)[indices])
         return (np.stack(ret), header)
+    def read_by_file_name(self, index, time_bound=None):
 
-    def read_example(self, index):
+        if index < 0 or index >= len(self._data):
+            raise ValueError("Index must be from 0 (inclusive) to number of lines (exclusive).")
+        
+        # timeseries_path = self.ehr_paths[index]
+        t = self.data_map[index]['time'] if time_bound is None else time_bound
+        y = self.data_map[index]['labels']
+        stay_id = self.data_map[index]['stay_id']
+        # name = self._data[index][0]
+        # t = self._data[index][1]
+        # y = self._data[index][2] 
+        (X, header) = self._read_timeseries(index)
+
+        return {"X": X,
+                "t": t,
+                "y": y,
+                'stay_id': stay_id,
+                "header": header,
+                "name": index}
+
+    def read_example(self, index, time_bound=None):
         """ Reads the example with given index.
 
         :param index: Index of the line of the listfile to read (counting starts from 0).
@@ -252,11 +295,10 @@ class PhenotypingReader(Reader):
             name: Name of the sample.
         """
         if index < 0 or index >= len(self._data):
-            raise ValueError(
-                "Index must be from 0 (inclusive) to number of lines (exclusive).")
+            raise ValueError("Index must be from 0 (inclusive) to number of lines (exclusive).")
 
         name = self._data[index][0]
-        t = self._data[index][1]
+        t = self._data[index][1] if time_bound is None else time_bound
         y = self._data[index][2]
         (X, header) = self._read_timeseries(name)
 
@@ -265,6 +307,7 @@ class PhenotypingReader(Reader):
                 "y": y,
                 "header": header,
                 "name": name}
+
 
 
 class MultitaskReader(Reader):
@@ -347,70 +390,5 @@ class MultitaskReader(Reader):
                 "los": self._data[index][3],
                 "pheno": self._data[index][4],
                 "decomp": self._data[index][5],
-                "header": header,
-                "name": name}
-
-
-class SurvivalReader(Reader):
-    def __init__(self, dataset_dir, listfile=None, period_length=48.0, columns=[]):
-        """ Reader for length of stay prediction task.
-
-        :param dataset_dir: Directory where timeseries files are stored.
-        :param listfile:    Path to a listfile. If this parameter is left `None` then
-                            `dataset_dir/listfile.csv` will be used.
-        """
-        Reader.__init__(self, dataset_dir, listfile)
-        self._data = [line.split(',') for line in self._data]
-        self._data = [(x, float(t), float(y))
-                      for (x, _, _, t, y) in self._data]
-        self._period_length = period_length
-        self.columns = columns
-
-    def _read_timeseries(self, ts_filename):
-        ret = []
-        with open(os.path.join(self._dataset_dir, ts_filename), "r") as tsfile:
-            header = tsfile.readline().strip().split(',')
-            if len(self.columns) > 0:
-                indices = [header.index(column)
-                           for column in ["Hours"] + self.columns]
-            else:
-                indices = [i for i in range(len(header))]
-            assert header[0] == "Hours"
-            for line in tsfile:
-                mas = line.strip().split(',')
-                ret.append(np.array(mas)[indices])
-        return (np.stack(ret), header)
-
-    def read_example(self, index):
-        """ Reads the example with given index.
-
-        :param index: Index of the line of the listfile to read (counting starts from 0).
-        :return: Dictionary with the following keys:
-            X : np.array
-                2D array containing all events. Each row corresponds to a moment.
-                First column is the time and other columns correspond to different
-                variables.
-            t : float
-                Length of the data in hours. Note, in general, it is not equal to the
-                timestamp of last event.
-            y : float
-                Remaining time in ICU.
-            header : array of strings
-                Names of the columns. The ordering of the columns is always the same.
-            name: Name of the sample.
-        """
-        if index < 0 or index >= len(self._data):
-            raise ValueError(
-                "Index must be from 0 (inclusive) to number of lines (exclusive).")
-
-        name = self._data[index][0]
-        t = self._data[index][1]
-        y = self._data[index][2]
-        (X, header) = self._read_timeseries(name)
-
-        return {"X": X,
-                "t": self._period_length,
-                "st": t,
-                "c": y,
                 "header": header,
                 "name": name}

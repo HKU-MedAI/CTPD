@@ -77,7 +77,7 @@ def process_partition(args, definitions, code_to_group, id_to_group, group_to_id
                 cur_labels = [x for (i, x) in enumerate(cur_labels)
                               if definitions[id_to_group[i]]['use_in_benchmark']]
 
-                xty_triples.append((output_ts_filename, n_hours, cur_labels))
+                xty_triples.append((output_ts_filename, n_hours, icustay, cur_labels))
 
     print("Number of created samples:", len(xty_triples))
     if partition == "train":
@@ -88,12 +88,12 @@ def process_partition(args, definitions, code_to_group, id_to_group, group_to_id
     codes_in_benchmark = [x for x in id_to_group
                           if definitions[x]['use_in_benchmark']]
 
-    listfile_header = "stay,period_length," + ",".join(codes_in_benchmark)
+    listfile_header = "stay,period_length,stay_id," + ",".join(codes_in_benchmark)
     with open(os.path.join(output_dir, "listfile.csv"), "w") as listfile:
         listfile.write(listfile_header + "\n")
-        for (x, t, y) in xty_triples:
+        for (x, t, stay_id, y) in xty_triples:
             labels = ','.join(map(str, y))
-            listfile.write('{},{:.6f},{}\n'.format(x, t, labels))
+            listfile.write('{},{:.6f},{},{}\n'.format(x, t, stay_id, labels))
 
 
 def main():
