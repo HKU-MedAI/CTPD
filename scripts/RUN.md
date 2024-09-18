@@ -40,7 +40,6 @@ CUDA_VISIBLE_DEVICES=0 python embedding_mimic4.py --eval_method linear \
 CUDA_VISIBLE_DEVICES=0 python evaluate_multimodal.py
 ```
 
-
 ### Comparison with baselines
 ```
 CUDA_VISIBLE_DEVICES=0 python train_mimic4.py --modeltype TS --task ihm --model_name cnn
