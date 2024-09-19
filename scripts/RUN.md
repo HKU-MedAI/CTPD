@@ -3,7 +3,7 @@
 1. Pretrain a self-supervised model to learn representations.
 
 ```bash
-CUDA_VISIBLE_DEVICES=0,3 python pretrain_mimic4.py --devices 2
+CUDA_VISIBLE_DEVICES=6,7 python pretrain_mimic4.py --devices 2
 ```
 
 2. Extract embeddings from the training set.

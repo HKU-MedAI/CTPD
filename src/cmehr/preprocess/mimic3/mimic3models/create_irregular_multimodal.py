@@ -3,6 +3,7 @@ This script is used to format MIMIC 3 into irregular time series following:
 https://arxiv.org/abs/2210.12156 (ICML 2023)
 '''
 import os
+import ipdb
 import argparse
 import json
 import pickle
@@ -11,35 +12,36 @@ from pathlib import Path
 import numpy as np
 import statistics as stat
 
-from cmehr.preprocess.mimic3.mimic3models.readers import (InHospitalMortalityReader, PhenotypingReader, Reader)
+from cmehr.preprocess.mimic3.mimic3models.readers import (MultimodalReader, Reader)
 import cmehr.preprocess.mimic3.mimic3models.common_utils as common_utils
 from cmehr.preprocess.mimic3.mimic3models.preprocessing import Discretizer
 from cmehr.preprocess.mimic3.mimic3models.text_utils import TextReader, merge_text_ts
 
 from cmehr.paths import *
 
+'''
+python -m mimic3models.create_irregular_multimodal --dataset_path /data1/r20user2/EHR_dataset/mimiciii_benchmark/multimodal
+'''
 parser = argparse.ArgumentParser(
     description='Create irregular time series from MIMIC 3')
-parser.add_argument("--task", default='pheno', type=str,
-                    choices=["ihm", "pheno", "readm", "delirium", "oud"],
-                    help="task name to create data")
-parser.add_argument("--output_dir", type=str, default= MIMIC3_BENCHMARK_PATH / "output_mimic3")
+parser.add_argument("--output_dir", type=str, default= DATA_PATH / "output_mimic3/self_supervised_multimodal")
 parser.add_argument('--timestep', type=float, default=1.00,
                     help="fixed timestep used in the dataset")
 parser.add_argument('--imputation', type=str, default='previous')
 parser.add_argument('--small_part', dest='small_part', action='store_true')
-parser.add_argument('--dataset_dir', type=str, default=MIMIC3_BENCHMARK_PATH)
+parser.add_argument('--dataset_path', type=str, default=DATA_PATH)
 args = parser.parse_args()
 
-args.dataset_dir = Path(args.dataset_dir) / args.task
-if args.task == 'ihm' or args.task == 'readm':
-    args.period_length = 48
-elif args.task == 'pheno' or args.task == 'delirium' or args.task == 'oud':
-    args.period_length = 24
-else:
-    raise ValueError("Task is invalid")
+args.dataset_dir = Path(args.dataset_path)
+# if args.task == 'ihm' or args.task == 'readm':
+#     args.period_length = 48
+# elif args.task == 'pheno' or args.task == 'delirium' or args.task == 'oud':
+#     args.period_length = 24
+# else:
+#     raise ValueError("Task is invalid")
+args.period_length = 48
 
-output_dir = args.output_dir / args.task
+output_dir = args.output_dir
 os.makedirs(output_dir, exist_ok=True)
 print(args)
 
@@ -203,7 +205,6 @@ def save_data(reader: Reader,
     ret = common_utils.read_chunk(reader, N)
     irg_data = ret["X"]
     ts = ret["t"]
-    labels = ret["y"]
     names = ret["name"]
     # procesed by discretizer
     reg_data = [discretizer.transform(X, end=t)[0]
@@ -211,7 +212,7 @@ def save_data(reader: Reader,
 
     with open(os.path.join(outputdir, f"ts_{mode}.pkl"), 'wb') as f:
         # Write the processed data to pickle file so it is faster to just read later
-        pickle.dump((irg_data, reg_data, labels, names), f)
+        pickle.dump((irg_data, reg_data, names), f)
 
     return
 
@@ -232,7 +233,7 @@ def extract_irregular(dataPath_in, dataPath_out):
     is_catg = dis_config['is_categorical_channel']
 
     with open(dataPath_in, 'rb') as f:
-        ireg_data, reg_data, y, names = pickle.load(f)
+        ireg_data, reg_data, names = pickle.load(f)
 
     data_irregular = []
     for p_id, x, in tqdm(enumerate(ireg_data), total=len(ireg_data), desc="Extract irregular time series"):
@@ -264,7 +265,7 @@ def extract_irregular(dataPath_in, dataPath_out):
         # reg_data: reg_data | mask
         data_i['reg_ts'] = reg_data[p_id]
         data_i['name'] = names[p_id]
-        data_i['label'] = y[p_id]
+        # data_i['label'] = y[p_id]
         data_i['ts_tt'] = tt
         data_i['irg_ts'] = np.array(features_list)
         data_i['irg_ts_mask'] = np.array(features_mask_list)
@@ -364,45 +365,66 @@ def create_irregular_ts():
         config = json.load(f)
     variables = config['id_to_channel']
 
-    if args.task == 'ihm':
-        train_reader = InHospitalMortalityReader(
-            dataset_dir=args.dataset_dir / "train",
-            listfile=args.dataset_dir / "train_listfile.csv",
-            period_length=args.period_length,
-            columns=variables
-        )
+    train_reader = MultimodalReader(
+        dataset_dir=args.dataset_dir / "train",
+        listfile=args.dataset_dir / "train_listfile.csv",
+        period_length=args.period_length,
+        columns=variables
+    )
 
-        val_reader = InHospitalMortalityReader(
-            dataset_dir=args.dataset_dir / "train",
-            listfile=args.dataset_dir / "val_listfile.csv",
-            period_length=args.period_length,
-            columns=variables
-        )
+    val_reader = MultimodalReader(
+        dataset_dir=args.dataset_dir / "train",
+        listfile=args.dataset_dir / "val_listfile.csv",
+        period_length=args.period_length,
+        columns=variables
+    )
 
-        test_reader = InHospitalMortalityReader(
-            dataset_dir=args.dataset_dir / "test",
-            listfile=args.dataset_dir / "test_listfile.csv",
-            period_length=args.period_length,
-            columns=variables
-        )
-    elif args.task == "pheno":
-        train_reader = PhenotypingReader(
-            dataset_dir=args.dataset_dir / "train",
-            listfile=args.dataset_dir / "train_listfile.csv",
-            columns=variables
-        )
-        val_reader = PhenotypingReader(
-            dataset_dir=args.dataset_dir / "train",
-            listfile=args.dataset_dir / "val_listfile.csv",
-            columns=variables
-        )
-        test_reader = PhenotypingReader(
-            dataset_dir=args.dataset_dir / "test",
-            listfile=args.dataset_dir / "test_listfile.csv",
-            columns=variables
-        )
-    else:
-        raise ValueError("Task is invalid")
+    test_reader = MultimodalReader(
+        dataset_dir=args.dataset_dir / "test",
+        listfile=args.dataset_dir / "test_listfile.csv",
+        period_length=args.period_length,
+        columns=variables
+    )
+
+    # if args.task == 'ihm':
+    #     train_reader = InHospitalMortalityReader(
+    #         dataset_dir=args.dataset_dir / "train",
+    #         listfile=args.dataset_dir / "train_listfile.csv",
+    #         period_length=args.period_length,
+    #         columns=variables
+    #     )
+
+    #     val_reader = InHospitalMortalityReader(
+    #         dataset_dir=args.dataset_dir / "train",
+    #         listfile=args.dataset_dir / "val_listfile.csv",
+    #         period_length=args.period_length,
+    #         columns=variables
+    #     )
+
+    #     test_reader = InHospitalMortalityReader(
+    #         dataset_dir=args.dataset_dir / "test",
+    #         listfile=args.dataset_dir / "test_listfile.csv",
+    #         period_length=args.period_length,
+    #         columns=variables
+    #     )
+    # elif args.task == "pheno":
+    #     train_reader = PhenotypingReader(
+    #         dataset_dir=args.dataset_dir / "train",
+    #         listfile=args.dataset_dir / "train_listfile.csv",
+    #         columns=variables
+    #     )
+    #     val_reader = PhenotypingReader(
+    #         dataset_dir=args.dataset_dir / "train",
+    #         listfile=args.dataset_dir / "val_listfile.csv",
+    #         columns=variables
+    #     )
+    #     test_reader = PhenotypingReader(
+    #         dataset_dir=args.dataset_dir / "test",
+    #         listfile=args.dataset_dir / "test_listfile.csv",
+    #         columns=variables
+    #     )
+    # else:
+    #     raise ValueError("Task is invalid")
 
     discretizer = Discretizer_multi(timestep=float(args.timestep),
                                     store_masks=True,
@@ -437,35 +459,35 @@ def create_irregular_ts():
     #     )
     # normalizer.load_params(normalizer_state)
 
-    print("Step 1: Load regular time series data")
-    save_data(train_reader, discretizer, output_dir,
-              args.small_part, mode='train')
-    save_data(val_reader, discretizer, output_dir,
-              args.small_part, mode='val')
-    save_data(test_reader, discretizer, output_dir,
-              args.small_part, mode='test')
+    # print("Step 1: Load regular time series data")
+    # save_data(train_reader, discretizer, output_dir,
+    #           args.small_part, mode='train')
+    # save_data(val_reader, discretizer, output_dir,
+    #           args.small_part, mode='val')
+    # save_data(test_reader, discretizer, output_dir,
+    #           args.small_part, mode='test')
 
-    print("Step 2: Load irregular time series data")
-    for mode in ['train', 'val', 'test']:
-        extract_irregular(
-            os.path.join(output_dir, f"ts_{mode}.pkl"),
-            os.path.join(output_dir, f"ts_{mode}.pkl")
-        )
+    # print("Step 2: Load irregular time series data")
+    # for mode in ['train', 'val', 'test']:
+    #     extract_irregular(
+    #         os.path.join(output_dir, f"ts_{mode}.pkl"),
+    #         os.path.join(output_dir, f"ts_{mode}.pkl")
+    #     )
 
-    # calculate mean,std of ts
-    print("Step 3: compute mean and std of the whole dataset")
-    mean_std(
-        os.path.join(output_dir, 'ts_train.pkl'),
-        os.path.join(output_dir, 'mean_std.pkl')
-    )
+    # # calculate mean,std of ts
+    # print("Step 3: compute mean and std of the whole dataset")
+    # mean_std(
+    #     os.path.join(output_dir, 'ts_train.pkl'),
+    #     os.path.join(output_dir, 'mean_std.pkl')
+    # )
 
-    print("Step 4: normalize the time series data")
-    for mode in ['train', 'val', 'test']:
-        normalize(
-            os.path.join(output_dir, f"ts_{mode}.pkl"),
-            os.path.join(output_dir, f"norm_ts_{mode}.pkl"),
-            os.path.join(output_dir, 'mean_std.pkl')
-        )
+    # print("Step 4: normalize the time series data")
+    # for mode in ['train', 'val', 'test']:
+    #     normalize(
+    #         os.path.join(output_dir, f"ts_{mode}.pkl"),
+    #         os.path.join(output_dir, f"norm_ts_{mode}.pkl"),
+    #         os.path.join(output_dir, 'mean_std.pkl')
+    #     )
 
     train_textdata_fixed = MIMIC3_BENCHMARK_PATH / "train_text_fixed"
     train_starttime_path = MIMIC3_BENCHMARK_PATH / "train_starttime.pkl"
@@ -486,16 +508,15 @@ def create_irregular_ts():
             text_reader = TextReader(test_textdata_fixed, test_starttime_path)
 
         data_text, data_times, data_time = text_reader.read_all_text_append_json(
-            names, args.period_length)
+            names, 1e+6)
 
         merge_text_ts(data_text, data_times, data_time, tsdata,
-                      args.period_length,
-                      os.path.join(output_dir, f"{mode}_p2x_data.pkl"))
+                      1e+6, os.path.join(output_dir, f"{mode}_p2x_data.pkl"))
 
 
 if __name__ == '__main__':
     '''
-    python -m cmehr.preprocess.mimic3.mimic3models.create_iiregular_ts 
+    python -m cmehr.preprocess.mimic3.mimic3models.create_iiregular_multimodal
     '''
     create_irregular_ts()
 

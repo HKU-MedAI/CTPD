@@ -14,7 +14,6 @@ from cmehr.preprocess.mimic4.mimic4models.preprocessing import Discretizer
 from cmehr.paths import *
 
 '''
-TODO: maybe we need to merge these preprocessing code into cmehr repo. To make sure the consistent dataset preprocessing procedures.
 python -m mimic4models.create_irregular_multimodal --dataset_path /disk1/fywang/EHR_dataset/mimiciv_benchmark/cxr \
     --cxr_path /disk1/fywang/EHR_dataset/mimiciv_benchmark/cxr/admission_w_cxr.csv
 '''
@@ -32,6 +31,7 @@ parser.add_argument('--cxr_path', type=str,
 args = parser.parse_args()
 
 
+# TODO: check if this hyperparameter is useless.
 args.period_length = 48
 args.dataset_path = Path(args.dataset_path)
 output_dir = args.output_dir / "self_supervised_multimodal"

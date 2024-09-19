@@ -1,5 +1,5 @@
 '''
-This script is used for self-supervised pretraining on multimodal MIMIC4 dataset.
+This script is used for self-supervised pretraining on multimodal MIMIC3 dataset.
 '''
 from argparse import ArgumentParser
 from datetime import datetime
@@ -10,8 +10,8 @@ import os
 from lightning import Trainer, seed_everything
 from lightning.pytorch.callbacks import LearningRateMonitor, ModelCheckpoint, EarlyStopping
 from lightning.pytorch.loggers import WandbLogger
-from cmehr.dataset.mimic4_pretraining_datamodule import MIMIC4MultimodalDataModule
-from cmehr.models.mimic4.stage1_pretrain_model import MIMIC4PretrainModule
+from cmehr.dataset.mimic3_pretraining_datamodule import MIMIC3MultimodalDataModule
+from cmehr.models.mimic3.stage1_pretrain_model import MIMIC3PretrainModule
 from cmehr.paths import *
 
 torch.backends.cudnn.deterministic = True  # type: ignore
@@ -19,10 +19,9 @@ torch.backends.cudnn.benchmark = True  # type: ignore
 torch.set_float32_matmul_precision("high")
 
 '''
-CUDA_VISIBLE_DEVICES=2,3 python pretrain_mimic4.py --devices 2
 '''
 
-parser = ArgumentParser(description="Self-supervised pretraining for MIMIC IV")
+parser = ArgumentParser(description="Self-supervised pretraining for MIMIC III")
 parser.add_argument("--batch_size", type=int, default=16)
 parser.add_argument("--num_workers", type=int, default=4)
 parser.add_argument("--max_epochs", type=int, default=100)
@@ -41,9 +40,7 @@ args = parser.parse_args()
 def cli_main():
     seed_everything(args.seed)
 
-    # This is fixed for MIMIC4
-    # args.orig_d_ts = 25
-    # args.orig_reg_d_ts = 50
+    # This is fixed for MIMIC3
     args.orig_d_ts = 15
     args.orig_reg_d_ts = 30
     
@@ -52,22 +49,21 @@ def cli_main():
         args.first_nrows = None
 
     # TODO: change this to use the task argument
-    dm = MIMIC4MultimodalDataModule(  
+    dm = MIMIC3MultimodalDataModule(  
         mimic_cxr_dir=str(MIMIC_CXR_JPG_PATH),
         file_path=str(
-            ROOT_PATH / f"output_mimic4/self_supervised_multimodal"),
+            ROOT_PATH / f"output_mimic3/self_supervised_multimodal"),
         period_length=args.period_length,
         batch_size=args.batch_size,
         num_workers=args.num_workers,
         first_nrows=args.first_nrows,
-        num_imgs=args.num_imgs
         )
 
-    model = MIMIC4PretrainModule(**vars(args))
+    model = MIMIC3PretrainModule(**vars(args))
     model.train_iters_per_epoch = len(dm.train_dataloader()) // (args.accumulate_grad_batches * args.devices)
     # initialize trainer
     run_name = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-    run_name = f"mimic4_pretrain_{run_name}"
+    run_name = f"mimic3_pretrain_{run_name}"
     os.makedirs(ROOT_PATH / "log/ckpts", exist_ok=True)
     logger = WandbLogger(
         name=run_name,

@@ -1,5 +1,13 @@
 # MSPG
 
+
+### Installation
+```
+conda install -c pytorch -c nvidia faiss-gpu=1.8.0
+pip3 install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu124
+pip install -r requirements.txt
+```
+
 Code for EHR pretraining.
 
 - 1. Self-supervised learning from multi-modality data

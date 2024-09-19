@@ -168,3 +168,5 @@ output_mimic3/
 *.pdf
 prototype_results/
 *.pt
+output_mimic3
+output_mimic4

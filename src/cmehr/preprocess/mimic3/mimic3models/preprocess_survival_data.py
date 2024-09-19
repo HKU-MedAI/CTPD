@@ -10,7 +10,7 @@ import numpy as np
 import statistics as stat
 from typing import List, Dict
 
-from cmehr.preprocess.mimic3.mimic3benchmark.readers import SurvivalReader, Reader
+from cmehr.preprocess.mimic3.mimic3models.readers import SurvivalReader, Reader
 # from cmehr.preprocess.mimic3.mimic3models.preprocessing import Normalizer
 import cmehr.preprocess.mimic3.mimic3models.common_utils as common_utils
 from cmehr.preprocess.mimic3.mimic3models.preprocessing import Discretizer

@@ -90,7 +90,6 @@ class TextReader():
                 final_concatenated_text = []
                 times_array = []
                 for (t, txt) in zip(time, texts):
-
                     if diff(start_time, t) <= period_length + 1e-6 : #and  diff(start_time, t)>=(-24-1e-6)
                         final_concatenated_text.append(txt)
                         times_array.append(t)
@@ -332,11 +331,15 @@ def merge_text_ts(textdict, timedict, start_times,tslist,period_length,dataPath_
     suceed = 0
     missing = 0
     for idx, ts_dict in enumerate(tslist):
-        name=ts_dict['name']
+        name = ts_dict['name']
         if name in textdict:
-            ts_dict['text_data']=textdict[name]
-   
-            ts_dict['text_time_to_end']= get_time_to_end_diffs(timedict[name], start_times[name],endtime=period_length+1)[0]
+            ts_dict['text_data'] = textdict[name]
+            text_time = [diff_float(np.datetime64(start_times[name]), np.datetime64(t)) for t in timedict[name]]
+            los = max(ts_dict["ts_tt"])
+            # text_time = [t for t in text_time if t <= los]
+            indices = (np.array(text_time) <= los) & (np.array(text_time) > 0)
+            ts_dict["text_data"] = [ts_dict["text_data"][i] for i in range(len(ts_dict["text_data"])) if indices[i]]
+            ts_dict["text_time"] = [text_time[i] for i in range(len(text_time)) if indices[i]]
             suceed += 1
         else:
             missing += 1
@@ -346,6 +349,7 @@ def merge_text_ts(textdict, timedict, start_times,tslist,period_length,dataPath_
 
     with open(dataPath_out, 'wb') as f:
         pickle.dump(tslist, f)
+        
     return 
 
 def get_time_to_end_diffs(times, st,endtime=49):

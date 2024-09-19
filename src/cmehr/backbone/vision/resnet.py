@@ -7,7 +7,7 @@ from typing import Any, List, Tuple, Type, Union
 
 import torch
 from torch.hub import load_state_dict_from_url
-from torchvision.models.resnet import model_urls, ResNet, BasicBlock, Bottleneck
+from torchvision.models.resnet import ResNet, BasicBlock, Bottleneck
 
 TypeSkipConnections = Tuple[torch.Tensor, torch.Tensor,
                             torch.Tensor, torch.Tensor, torch.Tensor]

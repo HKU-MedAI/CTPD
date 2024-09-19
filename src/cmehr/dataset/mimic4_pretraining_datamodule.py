@@ -151,6 +151,7 @@ class MIMIC4MultimodalDataset(Dataset):
 def custom_collate_fn(batch):
     """ Collate fn for irregular time series and notes """
 
+    # TODO: need to handle the padding cases when pretraining.
     name = [example['idx'] for example in batch]
     ts_input_sequences = pad_sequence(
         [example['ts'] for example in batch], batch_first=True, padding_value=0)

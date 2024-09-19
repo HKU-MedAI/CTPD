@@ -66,7 +66,7 @@ class MIMIC4_Dataset(Dataset):
                     self.mimic_cxr_dir, p)).convert("RGB")
                 img = self.img_transform(img)
                 cxr_imgs.append(img)
-            cxr_time = [t/self.tt_max for t in cxr_time]
+            cxr_time = [t / self.tt_max for t in cxr_time]
             cxr_time_mask = [1] * len(cxr_time)
 
         label = torch.tensor(label, dtype=torch.long)
