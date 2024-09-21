@@ -55,6 +55,7 @@ class MIMIC3MultimodalDataset(Dataset):
         self.tokenizer = AutoTokenizer.from_pretrained(bert_type)
 
         # To remove the time steps greater than ts_max
+        filtered_data = []
         for sample in self.data:
             ts_indices = np.where(np.array(sample["ts_tt"]) <= self.ts_max)[0]
             if len(ts_indices) == 0:
@@ -67,6 +68,8 @@ class MIMIC3MultimodalDataset(Dataset):
             sample["irg_ts_mask"] = np.array(sample["irg_ts_mask"])[ts_indices]
             sample["text_time"] = np.array(sample["text_time"])[text_indices]
             sample["text_data"] = np.array(sample["text_data"])[text_indices]
+            filtered_data.append(sample)
+        self.data = filtered_data
 
     def __getitem__(self, idx):
         data_detail = self.data[idx]

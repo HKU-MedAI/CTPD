@@ -19,7 +19,7 @@ torch.backends.cudnn.benchmark = True  # type: ignore
 torch.set_float32_matmul_precision("high")
 
 '''
-CUDA_VISIBLE_DEVICES=2,3 python pretrain_mimic4.py --devices 2
+CUDA_VISIBLE_DEVICES=4,5 python pretrain_mimic4.py --devices 2
 '''
 
 parser = ArgumentParser(description="Self-supervised pretraining for MIMIC IV")
@@ -55,7 +55,7 @@ def cli_main():
     dm = MIMIC4MultimodalDataModule(  
         mimic_cxr_dir=str(MIMIC_CXR_JPG_PATH),
         file_path=str(
-            ROOT_PATH / f"output_mimic4/self_supervised_multimodal"),
+            DATA_PATH / f"output_mimic4/self_supervised_multimodal"),
         period_length=args.period_length,
         batch_size=args.batch_size,
         num_workers=args.num_workers,

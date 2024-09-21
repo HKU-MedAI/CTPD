@@ -19,10 +19,12 @@ torch.backends.cudnn.benchmark = True  # type: ignore
 torch.set_float32_matmul_precision("high")
 
 '''
+# CUDA_VISIBLE_DEVICES=0,1 python pretrain_mimic3.py --devices 2 --batch_size 256
+CUDA_VISIBLE_DEVICES=0,1 python pretrain_mimic3.py --devices 2 --batch_size 2
 '''
 
 parser = ArgumentParser(description="Self-supervised pretraining for MIMIC III")
-parser.add_argument("--batch_size", type=int, default=16)
+parser.add_argument("--batch_size", type=int, default=128)
 parser.add_argument("--num_workers", type=int, default=4)
 parser.add_argument("--max_epochs", type=int, default=100)
 parser.add_argument("--devices", type=int, default=1)
@@ -41,8 +43,8 @@ def cli_main():
     seed_everything(args.seed)
 
     # This is fixed for MIMIC3
-    args.orig_d_ts = 15
-    args.orig_reg_d_ts = 30
+    args.orig_d_ts = 17
+    args.orig_reg_d_ts = 34
     
     # define datamodule
     if args.first_nrows == -1:
@@ -50,9 +52,8 @@ def cli_main():
 
     # TODO: change this to use the task argument
     dm = MIMIC3MultimodalDataModule(  
-        mimic_cxr_dir=str(MIMIC_CXR_JPG_PATH),
         file_path=str(
-            ROOT_PATH / f"output_mimic3/self_supervised_multimodal"),
+            DATA_PATH / f"output_mimic3/self_supervised_multimodal"),
         period_length=args.period_length,
         batch_size=args.batch_size,
         num_workers=args.num_workers,
@@ -78,7 +79,7 @@ def cli_main():
             save_top_k=2,
             save_last=False),
         EarlyStopping(monitor="val_loss", patience=10,
-                        mode="min", verbose=True)
+                      mode="min", verbose=True)
     ]
     trainer = Trainer(
         devices=args.devices,
@@ -91,7 +92,7 @@ def cli_main():
         logger=logger,
         strategy="ddp_find_unused_parameters_true",
         gradient_clip_val=0.5,
-        detect_anomaly=True
+        # detect_anomaly=True
     )
 
     trainer.fit(model, dm)

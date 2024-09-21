@@ -92,11 +92,11 @@ class MIMIC4PretrainModule(LightningModule):
             kernel_size=3
         )
 
-        self.img_dilated_conv = DilatedConvEncoder(
-            in_channels=self.embed_dim, 
-            channels=[self.embed_dim] * depth + [self.embed_dim], 
-            kernel_size=3
-        )
+        # self.img_dilated_conv = DilatedConvEncoder(
+        #     in_channels=self.embed_dim, 
+        #     channels=[self.embed_dim] * depth + [self.embed_dim], 
+        #     kernel_size=3
+        # )
         # self.ts_patch_embed = PatchEmbed(
         #         seq_len=self.tt_max, patch_size=1,
         #         in_chans=self.embed_dim, embed_dim=self.embed_dim
@@ -295,8 +295,8 @@ class MIMIC4PretrainModule(LightningModule):
         cxr_embs = rearrange(cxr_embs, "(b n) d -> b n d", b=batch_size)
         # cxr_mask = batch["reg_imgs_mask"].unsqueeze(-1).repeat(1, 1, cxr_embs.size(-1))
         # cxr_embs = torch.cat((cxr_embs, cxr_mask), 2)
-        img_feat = self.img_conv1(cxr_embs.permute(0, 2, 1))
-        img_emb = self.img_dilated_conv(img_feat).permute(0, 2, 1)
+        img_emb = self.img_conv1(cxr_embs.permute(0, 2, 1)).permute(0, 2, 1)
+        # img_emb = self.img_dilated_conv(img_feat)
         num_imgs = img_emb.size(1)
 
         # Cross modal loss
