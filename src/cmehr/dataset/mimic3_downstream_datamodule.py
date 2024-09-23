@@ -11,34 +11,6 @@ from torch.utils.data import DataLoader, Dataset
 from cmehr.paths import *
 
 
-def F_impute(X, tt, mask, duration, tt_max):
-    ''' Impute missing values in time series by previous values.
-    :param X: (n, 34)
-    :param tt: (n,)
-    :param mask: (n, 34)
-    :param duration: int
-    :param tt_max: int
-    '''
-    no_feature = X.shape[1]
-    impute = np.zeros(shape=(tt_max//duration, no_feature*2))
-    for x, t, m in zip(X, tt, mask):
-        row = int(t/duration)
-        if row >= tt_max:
-            continue
-        # iterate each feature
-        for f_idx, (rwo_x, row_m) in enumerate(zip(x, m)):
-            if row_m == 1:
-                impute[row][no_feature+f_idx] = 1
-                impute[row][f_idx] = rwo_x
-            else:
-                # For missing values:
-                # TODO: if previous row has value, use it, else use 0 instead of normal values
-                if impute[row-1][f_idx] != 0:
-                    impute[row][f_idx] = impute[row-1][f_idx]
-
-    return impute
-
-
 class TSNote_Irg(Dataset):
     def __init__(self,
                  file_path: str,
@@ -104,7 +76,6 @@ class TSNote_Irg(Dataset):
         ts_tt = data_detail["ts_tt"]
         text_time_to_end = data_detail["text_time_to_end"]
         # TODO: why do we need two reg_ts?
-        reg_ts = F_impute(ts, ts_tt, ts_mask, 1, self.tt_max)
 
         if 'Text' in self.modeltype:
             for t in text:
