@@ -57,11 +57,7 @@ args.orig_d_ts = 17
 def cli_main():
     all_auroc = []
     all_auprc = []
-    all_f1_2 = []
-    all_f1_3 = []
-    all_f1_5 = []
-    all_f1_7 = []
-    all_f1_9 = []
+    all_f1 = []
 
     for seed in [41, 42, 43]:
         seed_everything(seed)
@@ -191,20 +187,12 @@ def cli_main():
 
         all_auroc.append(model.report_auroc)
         all_auprc.append(model.report_auprc)
-        all_f1_2.append(model.report_f1_2)
-        all_f1_3.append(model.report_f1_3)
-        all_f1_5.append(model.report_f1_5)
-        all_f1_7.append(model.report_f1_7)
-        all_f1_9.append(model.report_f1_9)
+        all_f1.append(model.report_f1)
 
     report_df = pd.DataFrame({
         "auroc": all_auroc,
-        "auprc": all_auprc,
-        "f1_2": all_f1_2,
-        "f1_3": all_f1_3,
-        "f1_5": all_f1_5,
-        "f1_7": all_f1_7,
-        "f1_9": all_f1_9
+        "auprc": all_auprc, 
+        "f1": all_f1
     })
 
     mean_df = report_df.mean(axis=0)
