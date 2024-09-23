@@ -79,7 +79,8 @@ class TSNote_Irg(Dataset):
         atten_mask = []
         label = data_detail["label"]
         ts_tt = data_detail["ts_tt"]
-        text_time_to_end = data_detail["text_time_to_end"]
+        # text_time_to_end = data_detail["text_time_to_end"]
+        text_time = data_detail["text_time"]
         # TODO: why do we need two reg_ts?
 
         if 'Text' in self.modeltype:
@@ -106,16 +107,16 @@ class TSNote_Irg(Dataset):
         ts = torch.tensor(ts, dtype=torch.float)
         ts_mask = torch.tensor(ts_mask, dtype=torch.long)
         ts_tt = torch.tensor([t/self.tt_max for t in ts_tt], dtype=torch.float)
-        text_time_to_end = [1 - t/self.tt_max for t in text_time_to_end]
-        text_time_mask = [1] * len(text_time_to_end)
+        text_time = [t/self.tt_max for t in text_time]
+        text_time_mask = [1] * len(text_time)
 
         if 'Text' in self.modeltype:
             while len(text_token) < self.num_of_notes:
                 text_token.append(torch.tensor([0], dtype=torch.long))
                 atten_mask.append(torch.tensor([0], dtype=torch.long))
-                text_time_to_end.append(0)
+                text_time.append(0)
                 text_time_mask.append(0)
-        text_time_to_end = torch.tensor(text_time_to_end, dtype=torch.float)
+        text_time = torch.tensor(text_time, dtype=torch.float)
         text_time_mask = torch.tensor(text_time_mask, dtype=torch.long)
 
         if 'Text' not in self.modeltype:
@@ -129,7 +130,7 @@ class TSNote_Irg(Dataset):
                     "input_ids": text_token[-self.num_of_notes:],
                     "label": label,
                     "attention_mask": atten_mask[-self.num_of_notes:],
-                    'note_time': text_time_to_end[-self.num_of_notes:],
+                    'note_time': text_time[-self.num_of_notes:],
                     'text_time_mask': text_time_mask[-self.num_of_notes:],
                     }
         else:
@@ -138,7 +139,7 @@ class TSNote_Irg(Dataset):
                     "input_ids": text_token[:self.num_of_notes],
                     "label": label,
                     "attention_mask": atten_mask[:self.num_of_notes],
-                    'note_time': text_time_to_end[:self.num_of_notes],
+                    'note_time': text_time[:self.num_of_notes],
                     'text_time_mask': text_time_mask[:self.num_of_notes]
                     }
 
@@ -268,24 +269,24 @@ class MIMIC3DataModule(LightningDataModule):
 
 
 if __name__ == "__main__":
-    # dataset = TSNote_Irg(
-    #     file_path=str(DATA_PATH / "output_mimic3/pheno"),
-    #     split="train",
-    #     bert_type="yikuan8/Clinical-Longformer",
-    #     max_length=1024,
-    #     modeltype="TS_Text",
-    #     tt_max=48,
-    # )
-    # print(dataset[0])
-    datamodule = MIMIC3DataModule(
+    dataset = TSNote_Irg(
         file_path=str(DATA_PATH / "output_mimic3/pheno"),
+        split="train",
+        bert_type="yikuan8/Clinical-Longformer",
+        max_length=1024,
+        modeltype="TS_Text",
+        tt_max=48,
     )
-    batch = dict()
-    for batch in datamodule.val_dataloader():
-        if batch is not None:
-            break
-    for k, v in batch.items():
-        print(f"{k}: ", v.shape)
+    print(dataset[0])
+    # datamodule = MIMIC3DataModule(
+    #     file_path=str(DATA_PATH / "output_mimic3/pheno"),
+    # )
+    # batch = dict()
+    # for batch in datamodule.val_dataloader():
+    #     if batch is not None:
+    #         break
+    # for k, v in batch.items():
+    #     print(f"{k}: ", v.shape)
     ipdb.set_trace()
     """
     ts: torch.Size([4, 157, 17])

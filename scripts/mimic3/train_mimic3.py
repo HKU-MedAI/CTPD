@@ -1,5 +1,5 @@
 '''
-This is the script to run experiments on MIMIC-IV dataset.
+This is the script to run TS experiments on MIMIC-III dataset.
 '''
 
 from argparse import ArgumentParser
@@ -22,8 +22,6 @@ torch.backends.cudnn.benchmark = True  # type: ignore
 torch.set_float32_matmul_precision("high")
 
 parser = ArgumentParser(description="PyTorch Lightning EHR Model")
-parser.add_argument("--dataset_name", type=str, default="mimic4",
-                    choices=["mimic3", "mimic4"])
 parser.add_argument("--task", type=str, default="pheno",
                     choices=["ihm", "decomp", "los", "pheno"])
 parser.add_argument("--batch_size", type=int, default=128)
@@ -38,9 +36,6 @@ parser.add_argument("--first_nrows", type=int, default=-1)
 parser.add_argument("--model_name", type=str, default="medfuse",
                     choices=["proto_ts", "ipnet", "grud", "seft", "mtand", "dgm2",
                              "medfuse", "cnn"])
-parser.add_argument("--modeltype", type=str, default="TS_CXR",
-                    choices=["TS_CXR", "TS", "CXR"],
-                    help="Set the model type to use for training")
 parser.add_argument("--ts_learning_rate", type=float, default=4e-4)
 parser.add_argument("--ckpt_path", type=str,
                     default="")
@@ -52,13 +47,14 @@ parser.add_argument("--use_multiscale", action="store_true")
 args = parser.parse_args()
 
 '''
-CUDA_VISIBLE_DEVICES=2 python train_mimic.py --devices 1 --dataset_name mimic3 --task ihm --batch_size 128 --model_name cnn --modeltype TS
-CUDA_VISIBLE_DEVICES=2 python train_mimic4.py --devices 1 --task pheno --batch_size 128 --model_name medfuse
+CUDA_VISIBLE_DEVICES=2 python train_mimic3.py --devices 1 --task ihm --batch_size 128 --model_name cnn
 '''
+
+args.orig_reg_d_ts = 34
+args.orig_d_ts = 17
 
 
 def cli_main():
-
     all_auroc = []
     all_auprc = []
     all_f1_2 = []
@@ -79,28 +75,14 @@ def cli_main():
         elif args.task == "pheno":
             args.period_length = 24
 
-        if args.dataset_name == "mimic3":
-            dm = MIMIC3DataModule(
-                file_path=str(
-                    ROOT_PATH / f"output_mimic3/TS_CXR/{args.task}"),
-                modeltype=args.modeltype,
-                tt_max=args.period_length,
-                batch_size=args.batch_size,
-                num_workers=args.num_workers,
-                first_nrows=args.first_nrows)
-
-        elif args.dataset_name == "mimic4":
-            dm = MIMIC4DataModule(mimic_cxr_dir=str(MIMIC_CXR_JPG_PATH),
-                                  file_path=str(
-                ROOT_PATH / f"output_mimic4/TS_CXR/{args.task}"),
-                modeltype=args.modeltype,
-                tt_max=args.period_length,
-                batch_size=args.batch_size,
-                num_workers=args.num_workers,
-                first_nrows=args.first_nrows)
-
-        else:
-            raise ValueError("Invalid dataset name")
+        dm = MIMIC3DataModule(
+            file_path=str(
+                DATA_PATH / f"output_mimic3/{args.task}"),
+            tt_max=args.period_length,
+            batch_size=args.batch_size,
+            modeltype="TS",
+            num_workers=args.num_workers,
+            first_nrows=args.first_nrows)
 
         # define model
         if args.test_only:

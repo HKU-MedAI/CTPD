@@ -88,7 +88,7 @@ if __name__ == "__main__":
     from cmehr.dataset.mimic3_downstream_datamodule import MIMIC3DataModule
 
     datamodule = MIMIC3DataModule(
-        file_path=str(DATA_PATH / "output_mimic4/TS_CXR/ihm"),
+        file_path=str(DATA_PATH / "output_mimic3/ihm"),
         tt_max=48
     )
     for batch in datamodule.val_dataloader():
@@ -96,7 +96,6 @@ if __name__ == "__main__":
     model = CNNNoteModule(
         task="ihm",
         period_length=48)
-    ipdb.set_trace()
     loss = model(
         reg_ts=batch["reg_ts"],
         labels=batch["label"]
