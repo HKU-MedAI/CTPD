@@ -2,17 +2,17 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from cmehr.models.mimic4.base_model import MIMIC3LightningModule
+# from cmehr.models.mimic4.base_model import MIMIC3LightningModule
+from cmehr.models.mimic3.base_model import MIMIC3NoteModule
 
 import ipdb
 
 
-class CNNModule(MIMIC3LightningModule):
+class CNNNoteModule(MIMIC3NoteModule):
     def __init__(self,
                  task: str = "ihm",
                  modeltype: str = "TS",
                  max_epochs: int = 10,
-                 img_learning_rate: float = 1e-4,
                  ts_learning_rate: float = 4e-4,
                  period_length: int = 48,
                  orig_reg_d_ts: int = 30,
@@ -21,7 +21,7 @@ class CNNModule(MIMIC3LightningModule):
                  *args,
                  **kwargs):
         super().__init__(task=task, modeltype=modeltype, max_epochs=max_epochs,
-                         img_learning_rate=img_learning_rate, ts_learning_rate=ts_learning_rate,
+                         ts_learning_rate=ts_learning_rate,
                          period_length=period_length)
 
         self.input_size = orig_reg_d_ts
@@ -89,25 +89,14 @@ if __name__ == "__main__":
 
     datamodule = MIMIC3DataModule(
         file_path=str(DATA_PATH / "output_mimic4/TS_CXR/ihm"),
-        period_length=48
+        tt_max=48
     )
     for batch in datamodule.val_dataloader():
         break
-    """
-    ts: torch.Size([4, 157, 17])
-    ts_mask:  torch.Size([4, 157, 17])
-    ts_tt:  torch.Size([4, 157])
-    reg_ts:  torch.Size([4, 48, 34])
-    input_ids:  torch.Size([4, 5, 128])
-    attention_mask:  torch.Size([4, 5, 128])
-    note_time:  torch.Size([4, 5])
-    note_time_mask: torch.Size([4, 5])
-    label: torch.Size([4])
-    """
-    model = CNNModule(
+    model = CNNNoteModule(
         task="ihm",
-        modeltype="TS",
-        tt_max=48)
+        period_length=48)
+    ipdb.set_trace()
     loss = model(
         reg_ts=batch["reg_ts"],
         labels=batch["label"]

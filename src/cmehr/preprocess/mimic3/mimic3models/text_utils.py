@@ -330,17 +330,20 @@ def merge_text_events_with_timeseries(problem_type, data, text_reader, w2i_looku
 def merge_text_ts(textdict, timedict, start_times,tslist,period_length,dataPath_out):
     suceed = 0
     missing = 0
+    new_ts_list = []
     for idx, ts_dict in enumerate(tslist):
         name = ts_dict['name']
         if name in textdict:
             ts_dict['text_data'] = textdict[name]
             text_time = [diff_float(np.datetime64(start_times[name]), np.datetime64(t)) for t in timedict[name]]
             los = max(ts_dict["ts_tt"])
+            # TODO: this is changed later. while this is different for pretraining and downstream.
             # text_time = [t for t in text_time if t <= los]
             indices = (np.array(text_time) <= los) & (np.array(text_time) > 0)
             ts_dict["text_data"] = [ts_dict["text_data"][i] for i in range(len(ts_dict["text_data"])) if indices[i]]
             ts_dict["text_time"] = [text_time[i] for i in range(len(text_time)) if indices[i]]
             suceed += 1
+            new_ts_list.append(ts_dict)
         else:
             missing += 1
 
@@ -348,7 +351,7 @@ def merge_text_ts(textdict, timedict, start_times,tslist,period_length,dataPath_
     print("Missing Merging: ", missing)
 
     with open(dataPath_out, 'wb') as f:
-        pickle.dump(tslist, f)
+        pickle.dump(new_ts_list, f)
         
     return 
 

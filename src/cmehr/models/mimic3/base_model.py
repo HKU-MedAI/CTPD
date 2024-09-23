@@ -17,10 +17,8 @@ class MIMIC3LightningModule(LightningModule):
                  task: str = "ihm",
                  modeltype: str = "TS_CXR",
                  max_epochs: int = 10,
-                 img_learning_rate: float = 1e-4,
                  ts_learning_rate: float = 4e-4,
                  period_length: int = 48,
-                 num_labels: int = 2,
                  *args,
                  **kwargs
                  ):
@@ -41,7 +39,6 @@ class MIMIC3LightningModule(LightningModule):
         self.modeltype = modeltype
         self.task = task
         self.max_epochs = max_epochs
-        self.img_learning_rate = img_learning_rate
         self.ts_learning_rate = ts_learning_rate
         self.task = task
         self.tt_max = period_length
@@ -55,25 +52,13 @@ class MIMIC3LightningModule(LightningModule):
             raise ValueError("Unknown task")
 
     def training_step(self, batch: Dict, batch_idx: int):
-        if self.modeltype == "TS_Text":
-            loss = self(
-                x_ts=batch["ts"],  # type ignore
-                x_ts_mask=batch["ts_mask"],
-                ts_tt_list=batch["ts_tt"],
-                reg_ts=batch["reg_ts"],
-                labels=batch["label"],
-            )
-        elif self.modeltype == "TS":
-            loss = self(
-                x_ts=batch["ts"],  # type ignore
-                x_ts_mask=batch["ts_mask"],
-                ts_tt_list=batch["ts_tt"],
-                reg_ts=batch["reg_ts"],
-                labels=batch["label"],
-            )
-        else:
-            raise NotImplementedError
-
+        loss = self(
+            x_ts=batch["ts"],  # type ignore
+            x_ts_mask=batch["ts_mask"],
+            ts_tt_list=batch["ts_tt"],
+            reg_ts=batch["reg_ts"],
+            labels=batch["label"],
+        )
         batch_size = batch["ts"].size(0)
         self.log("train_loss", loss, on_step=True, on_epoch=True,
                  sync_dist=True, prog_bar=True, batch_size=batch_size)
@@ -84,23 +69,12 @@ class MIMIC3LightningModule(LightningModule):
         self.validation_step_outputs = []
 
     def validation_step(self, batch: Dict, batch_idx: int) -> STEP_OUTPUT:
-        if self.modeltype == "TS_CXR":
-            logits = self(
-                x_ts=batch["ts"],  # type ignore
-                x_ts_mask=batch["ts_mask"],
-                ts_tt_list=batch["ts_tt"],
-                reg_ts=batch["reg_ts"],
-            )
-        elif self.modeltype == "TS":
-            logits = self(
-                x_ts=batch["ts"],  # type ignore
-                x_ts_mask=batch["ts_mask"],
-                ts_tt_list=batch["ts_tt"],
-                reg_ts=batch["reg_ts"],
-            )
-        else:
-            raise NotImplementedError
-
+        logits = self(
+            x_ts=batch["ts"],  # type ignore
+            x_ts_mask=batch["ts_mask"],
+            ts_tt_list=batch["ts_tt"],
+            reg_ts=batch["reg_ts"],
+        )
         return_dict = {
             "logits": logits.detach().cpu().numpy(),
             "label": batch["label"].detach().cpu().numpy()
@@ -111,22 +85,12 @@ class MIMIC3LightningModule(LightningModule):
         self.test_step_outputs = []
 
     def test_step(self, batch: Dict, batch_idx: int) -> STEP_OUTPUT:
-        if self.modeltype == "TS_CXR":
-            logits = self(
-                x_ts=batch["ts"],  # type ignore
-                x_ts_mask=batch["ts_mask"],
-                ts_tt_list=batch["ts_tt"],
-                reg_ts=batch["reg_ts"]
-            )
-        elif self.modeltype == "TS":
-            logits = self(
-                x_ts=batch["ts"],  # type ignore
-                x_ts_mask=batch["ts_mask"],
-                ts_tt_list=batch["ts_tt"],
-                reg_ts=batch["reg_ts"],
-            )
-        else:
-            raise NotImplementedError
+        logits = self(
+            x_ts=batch["ts"],  # type ignore
+            x_ts_mask=batch["ts_mask"],
+            ts_tt_list=batch["ts_tt"],
+            reg_ts=batch["reg_ts"]
+        )
 
         return_dict = {
             "logits": logits.detach().cpu().numpy(),
@@ -260,3 +224,18 @@ class MIMIC3LightningModule(LightningModule):
             'frequency': 1
         }
         return [optimizer], [scheduler]
+    
+
+class MIMIC3NoteModule(MIMIC3LightningModule):
+    def __init__(self, 
+                 task: str = "ihm", 
+                 modeltype: str = "TS_CXR", 
+                 max_epochs: int = 100, 
+                 ts_learning_rate: float = 0.0004, 
+                 period_length: int = 48, 
+                 *args, 
+                 **kwargs):
+        super().__init__(task, modeltype, max_epochs, ts_learning_rate, period_length, *args, **kwargs)
+
+    def forward(self, batch, *args, **kwargs):
+        ipdb.set_trace()

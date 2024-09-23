@@ -65,6 +65,11 @@ class TSNote_Irg(Dataset):
         reg_ts = data_detail['reg_ts']  # (48, 34)
         ts = data_detail['irg_ts']
         ts_mask = data_detail['irg_ts_mask']
+
+        # only keep samples with both time series and text data
+        if 'text_data' not in data_detail:
+            return None
+        
         text = data_detail['text_data']
 
         if len(text) == 0:
@@ -263,12 +268,22 @@ class MIMIC3DataModule(LightningDataModule):
 
 
 if __name__ == "__main__":
+    # dataset = TSNote_Irg(
+    #     file_path=str(DATA_PATH / "output_mimic3/pheno"),
+    #     split="train",
+    #     bert_type="yikuan8/Clinical-Longformer",
+    #     max_length=1024,
+    #     modeltype="TS_Text",
+    #     tt_max=48,
+    # )
+    # print(dataset[0])
     datamodule = MIMIC3DataModule(
-        file_path=str(ROOT_PATH / "output/pheno"),
+        file_path=str(DATA_PATH / "output_mimic3/pheno"),
     )
     batch = dict()
     for batch in datamodule.val_dataloader():
-        break
+        if batch is not None:
+            break
     for k, v in batch.items():
         print(f"{k}: ", v.shape)
     ipdb.set_trace()

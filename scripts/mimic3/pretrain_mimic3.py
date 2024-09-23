@@ -20,7 +20,7 @@ torch.set_float32_matmul_precision("high")
 
 '''
 # CUDA_VISIBLE_DEVICES=0,1 python pretrain_mimic3.py --devices 2 --batch_size 256
-CUDA_VISIBLE_DEVICES=0,1 python pretrain_mimic3.py --devices 2 --batch_size 2
+CUDA_VISIBLE_DEVICES=1,7 python pretrain_mimic3.py --devices 2 --batch_size 2
 '''
 
 parser = ArgumentParser(description="Self-supervised pretraining for MIMIC III")
