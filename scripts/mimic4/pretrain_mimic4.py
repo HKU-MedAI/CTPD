@@ -19,7 +19,7 @@ torch.backends.cudnn.benchmark = True  # type: ignore
 torch.set_float32_matmul_precision("high")
 
 '''
-CUDA_VISIBLE_DEVICES=4,5 python pretrain_mimic4.py --devices 2
+CUDA_VISIBLE_DEVICES=6,7 python pretrain_mimic4.py --devices 2
 '''
 
 parser = ArgumentParser(description="Self-supervised pretraining for MIMIC IV")
@@ -95,7 +95,7 @@ def cli_main():
         logger=logger,
         strategy="ddp_find_unused_parameters_true",
         gradient_clip_val=0.5,
-        detect_anomaly=True
+        # detect_anomaly=True
     )
 
     trainer.fit(model, dm)

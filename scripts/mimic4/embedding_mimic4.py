@@ -81,7 +81,7 @@ def save_agg_embs(train_emb, train_label, val_emb, val_label, test_emb, test_lab
 def evaluate_reps(args, train_X, train_Y, val_X, val_Y, test_X, test_Y, n_proto=16):
     print(f"Evaluation method: {args.eval_method}")
     if args.eval_method == "svm":
-        eval_svm(train_X, train_Y, test_X, test_Y)
+        eval_svm(train_X, train_Y, val_X, val_Y, test_X, test_Y)
     elif args.eval_method in ["linear", "mlp"]:
         if args.eval_method == "mlp":
             tokenizer = PrototypeTokenizer(p=n_proto)

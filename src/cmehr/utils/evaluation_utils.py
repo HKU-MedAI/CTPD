@@ -3,6 +3,7 @@ Utility functions used for evaluation.
 '''
 import ipdb
 import torch
+import numpy as np
 from torch.utils.data import Dataset
 from datetime import datetime
 from sklearn.svm import LinearSVC
@@ -15,14 +16,50 @@ from cmehr.models.common.linear_finetuner import LinearFinetuner
 from cmehr.paths import *
 
 
-def eval_svm(train_X, train_y, test_X, test_y):
-    clf = LinearSVC(dual="auto")
-    clf.fit(train_X, train_y)
-    y_score = clf.decision_function(test_X)
-    auroc = metrics.roc_auc_score(test_y, y_score)
-    auprc = metrics.average_precision_score(test_y, y_score)
-    f1 = metrics.f1_score(test_y, y_score > 0)
-    print(f"AUROC: {auroc}, AUPRC: {auprc}, F1: {f1}")
+def eval_svm(train_X, train_y, val_X, val_y, test_X, test_y):
+    if train_y.ndim == 1:
+        clf = LinearSVC(dual="auto")
+        clf.fit(train_X, train_y)
+        y_score = clf.decision_function(test_X)
+        auroc = metrics.roc_auc_score(test_y, y_score)
+        auprc = metrics.average_precision_score(test_y, y_score)
+        val_y_score = clf.decision_function(val_X)
+        # select the best threshold on the validation set
+        _, _, thres = metrics.precision_recall_curve(val_y, val_y_score)
+        all_val_f1 = []
+        for t in thres:
+            y_pred = val_y_score > t
+            f1 = metrics.f1_score(val_y, y_pred)
+            all_val_f1.append(f1)
+        best_thres = thres[np.argmax(all_val_f1)]
+        f1 = metrics.f1_score(test_y, y_score > best_thres)
+        print(f"AUROC: {auroc}, AUPRC: {auprc}, F1: {f1}")
+    else:
+        num_classes = train_y.shape[1]
+        class_auroc = []
+        class_auprc = []
+        class_f1 = []
+        for i in range(num_classes):
+            clf = LinearSVC(dual="auto")
+            clf.fit(train_X, train_y[:, i])
+            y_score = clf.decision_function(test_X)
+            auroc = metrics.roc_auc_score(test_y[:, i], y_score)
+            auprc = metrics.average_precision_score(test_y[:, i], y_score)
+            val_y_score = clf.decision_function(val_X)
+            # select the best threshold on the validation set
+            _, _, thres = metrics.precision_recall_curve(val_y[:, i], val_y_score)
+            all_val_f1 = []
+            for t in thres:
+                y_pred = val_y_score > t
+                f1 = metrics.f1_score(val_y[:, i], y_pred)
+                all_val_f1.append(f1)
+            best_thres = thres[np.argmax(all_val_f1)]
+            f1 = metrics.f1_score(test_y[:, i], y_score > best_thres)
+            # print(f"AUROC: {auroc}, AUPRC: {auprc}, F1: {f1}")
+            class_auroc.append(auroc)
+            class_auprc.append(auprc)
+            class_f1.append(f1)
+        print(f"Mean AUROC: {np.mean(class_auroc)}, Mean AUPRC: {np.mean(class_auprc)}, Mean F1: {np.mean(class_f1)}")
 
 
 class CustomDataset(Dataset):

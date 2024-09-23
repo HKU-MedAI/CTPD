@@ -22,9 +22,10 @@ parser.add_argument("--batch_size", type=int, default=48)
 parser.add_argument("--num_workers", type=int, default=4)
 parser.add_argument("--proto_emb_dir", type=str, 
                     default=str(ROOT_PATH / "prototype_results/mimic4_pretrain"))
+parser.add_argument("--n_proto", type=int, default=16)
 args = parser.parse_args()
-args.ts_proto_emb_path = f"{args.proto_emb_dir}/{args.task}_ts_proto_16_embs.pkl"
-args.cxr_proto_emb_path = f"{args.proto_emb_dir}/{args.task}_cxr_proto_16_embs.pkl"
+args.ts_proto_emb_path = f"{args.proto_emb_dir}/{args.task}_ts_proto_{args.n_proto}_embs.pkl"
+args.cxr_proto_emb_path = f"{args.proto_emb_dir}/{args.task}_cxr_proto_{args.n_proto}_embs.pkl"
 
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")

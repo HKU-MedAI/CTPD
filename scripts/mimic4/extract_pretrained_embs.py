@@ -15,20 +15,17 @@ from cmehr.utils.file_utils import save_pkl, load_pkl
 from cmehr.utils.evaluation_utils import eval_svm, eval_linear
 import ipdb
 
-'''
-CUDA_VISIBLE_DEVICES=1 python extract_pretrained_embs.py \
-    --ckpt_path /home/fywang/Documents/EHR_codebase/MMMSPG/log/ckpts/mimic4_pretrain_2024-06-25_17-48-47/epoch=93-step=19364.ckpt
-'''
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 torch.backends.cudnn.deterministic = True  # type: ignore
 torch.backends.cudnn.benchmark = True      # type: ignore
+torch.multiprocessing.set_sharing_strategy('file_system')
 torch.set_float32_matmul_precision("high")
 
 
 parser = argparse.ArgumentParser(description="Evaluate MIMIC IV")
 parser.add_argument("--batch_size", type=int, default=4)
-parser.add_argument("--num_workers", type=int, default=4)
+parser.add_argument("--num_workers", type=int, default=2)
 parser.add_argument("--first_nrows", type=int, default=-1)
 parser.add_argument("--ckpt_path", type=str, 
                     default="")
@@ -50,7 +47,7 @@ def extract_pretrain_embs(model: MIMIC4PretrainModule, dataloader: DataLoader):
         # ts_tt = batch["ts_tt"].to(device)
         # proj_ts_embs = model.forward_ts_mtand(ts, ts_mask, ts_tt)
         # proj_ts_embs = F.normalize(proj_ts_embs, dim=-1)
-        all_name = all_name.extend(batch["name"])
+        all_name.extend(batch["name"])
         reg_ts = batch["reg_ts"].to(device)
         feat_ts = model.ts_conv1(reg_ts.permute(0, 2, 1))
         proj_ts_embs = model.ts_dilated_conv(feat_ts).permute(0, 2, 1)
@@ -61,13 +58,14 @@ def extract_pretrain_embs(model: MIMIC4PretrainModule, dataloader: DataLoader):
         cxr_feats = model.img_encoder(reg_imgs).img_embedding
         cxr_embs = model.img_proj_layer(cxr_feats)
         cxr_embs = rearrange(cxr_embs, "(b n) d -> b n d", b=batch_size)
-        reg_imgs_mask = batch["reg_imgs_mask"].to(device)
-        cxr_mask = reg_imgs_mask.unsqueeze(-1).repeat(1, 1, cxr_embs.size(-1))
-        cxr_embs = torch.cat((cxr_embs, cxr_mask), 2)
-        img_feat = model.img_conv1(cxr_embs.permute(0, 2, 1))
-        proj_img_embs = model.img_dilated_conv(img_feat).permute(0, 2, 1)
+        # reg_imgs_mask = batch["reg_imgs_mask"].to(device)
+        # cxr_mask = reg_imgs_mask.unsqueeze(-1).repeat(1, 1, cxr_embs.size(-1))
+        # cxr_embs = torch.cat((cxr_embs, cxr_mask), 2)
+        # img_feat = model.img_conv1(cxr_embs.permute(0, 2, 1))
+        # proj_img_embs = model.img_dilated_conv(img_feat).permute(0, 2, 1)
+        proj_img_embs = model.img_conv1(cxr_embs.permute(0, 2, 1)).permute(0, 2, 1)
 
-        del reg_ts, feat_ts, reg_imgs, cxr_feats, cxr_embs, reg_imgs_mask, img_feat
+        del reg_ts, feat_ts, reg_imgs, cxr_feats, cxr_embs
 
         # cxr_imgs = batch["cxr_imgs"].to(device)
         # cxr_time = batch["cxr_time"].to(device)
@@ -108,7 +106,7 @@ def extract_downstream_embs(model: MIMIC4PretrainModule, dataloader: DataLoader,
         # # use the last time step
         # proj_img_embs = F.normalize(proj_img_embs, dim=-1)
 
-        all_name = all_name.extend(batch["name"])
+        all_name.extend(batch["name"])
 
         reg_ts = batch["reg_ts"].to(device)
         feat_ts = model.ts_conv1(reg_ts.permute(0, 2, 1))
@@ -120,13 +118,14 @@ def extract_downstream_embs(model: MIMIC4PretrainModule, dataloader: DataLoader,
         cxr_feats = model.img_encoder(reg_imgs).img_embedding
         cxr_embs = model.img_proj_layer(cxr_feats)
         cxr_embs = rearrange(cxr_embs, "(b n) d -> b n d", b=batch_size)
-        reg_imgs_mask = batch["reg_imgs_mask"].to(device)
-        cxr_mask = reg_imgs_mask.unsqueeze(-1).repeat(1, 1, cxr_embs.size(-1))
-        cxr_embs = torch.cat((cxr_embs, cxr_mask), 2)
-        img_feat = model.img_conv1(cxr_embs.permute(0, 2, 1))
-        proj_img_embs = model.img_dilated_conv(img_feat).permute(0, 2, 1)
+        # reg_imgs_mask = batch["reg_imgs_mask"].to(device)
+        # cxr_mask = reg_imgs_mask.unsqueeze(-1).repeat(1, 1, cxr_embs.size(-1))
+        # cxr_embs = torch.cat((cxr_embs, cxr_mask), 2)
+        # img_feat = model.img_conv1(cxr_embs.permute(0, 2, 1))
+        # proj_img_embs = model.img_dilated_conv(img_feat).permute(0, 2, 1)
+        proj_img_embs = model.img_conv1(cxr_embs.permute(0, 2, 1)).permute(0, 2, 1)
 
-        del reg_ts, feat_ts, reg_imgs, cxr_feats, cxr_embs, reg_imgs_mask, img_feat
+        del reg_ts, feat_ts, reg_imgs, cxr_feats, cxr_embs
 
         all_ts_embs.append(proj_ts_embs.cpu().numpy())
         all_cxr_embs.append(proj_img_embs.cpu().numpy())
@@ -148,7 +147,6 @@ def cli_main():
     args.save_feat_dir = os.path.join(BASE_DIR, args.save_feat_dir, f"mimic4_pretrain")
     os.makedirs(args.save_feat_dir, exist_ok=True)
     
-    args.period_length = 48
     if args.ckpt_path:
         model = MIMIC4PretrainModule.load_from_checkpoint(args.ckpt_path, **vars(args))
     else:
@@ -161,7 +159,7 @@ def cli_main():
         dm = MIMIC4MultimodalDataModule(  
             mimic_cxr_dir=str(MIMIC_CXR_JPG_PATH),
             file_path=str(
-                ROOT_PATH / f"output_mimic4/self_supervised_multimodal"),
+                DATA_PATH / f"output_mimic4/self_supervised_multimodal"),
             period_length=args.period_length,
             batch_size=args.batch_size,
             num_workers=args.num_workers,
@@ -180,15 +178,15 @@ def cli_main():
         dm = MIMIC4DataModule(  
             mimic_cxr_dir=str(MIMIC_CXR_JPG_PATH),
             file_path=str(
-                ROOT_PATH / f"output_mimic4/TS_CXR/ihm"),
+                DATA_PATH / f"output_mimic4/TS_CXR/ihm"),
             # Here period length should be the same as the one used in the self-supervised learning task.
-            period_length=args.period_length,
+            period_length=48,
             batch_size=args.batch_size,
             num_workers=args.num_workers,
             first_nrows=args.first_nrows)
-        train_ts_embs, train_cxr_embs, train_label, train_names = extract_downstream_embs(model, dm.train_dataloader())
-        val_ts_embs, val_cxr_embs, val_label, val_names = extract_downstream_embs(model, dm.val_dataloader())
-        test_ts_embs, test_cxr_embs, test_label, test_names = extract_downstream_embs(model, dm.test_dataloader())
+        train_ts_embs, train_cxr_embs, train_label, train_names = extract_downstream_embs(model, dm.train_dataloader(), task_period_length=48)
+        val_ts_embs, val_cxr_embs, val_label, val_names = extract_downstream_embs(model, dm.val_dataloader(), task_period_length=48)
+        test_ts_embs, test_cxr_embs, test_label, test_names = extract_downstream_embs(model, dm.test_dataloader(), task_period_length=48)
         save_dict = {
             "train_ts_embs": train_ts_embs,
             "train_cxr_embs": train_cxr_embs,
@@ -205,26 +203,57 @@ def cli_main():
         }
         save_pkl(os.path.join(args.save_feat_dir, "ihm_embs.pkl"), save_dict)
     
+    if not os.path.exists(os.path.join(args.save_feat_dir, "pheno_embs.pkl")):
+        print("Extracting embeddings for PHENO task")
+        dm = MIMIC4DataModule(  
+            mimic_cxr_dir=str(MIMIC_CXR_JPG_PATH),
+            file_path=str(
+                DATA_PATH / f"output_mimic4/TS_CXR/pheno"),
+            period_length=24,
+            batch_size=args.batch_size,
+            num_workers=args.num_workers,
+            first_nrows=args.first_nrows)
+        train_ts_embs, train_cxr_embs, train_label, train_names = extract_downstream_embs(model, dm.train_dataloader(), task_period_length=24)
+        val_ts_embs, val_cxr_embs, val_label, val_names = extract_downstream_embs(model, dm.val_dataloader(), task_period_length=24)
+        test_ts_embs, test_cxr_embs, test_label, test_names = extract_downstream_embs(model, dm.test_dataloader(), task_period_length=24)
+        save_dict = {
+            "train_ts_embs": train_ts_embs,
+            "train_cxr_embs": train_cxr_embs,
+            "train_label": train_label,
+            "train_names": train_names,
+            "val_ts_embs": val_ts_embs,
+            "val_cxr_embs": val_cxr_embs,
+            "val_label": val_label,
+            "val_names": val_names,
+            "test_ts_embs": test_ts_embs,
+            "test_cxr_embs": test_cxr_embs,
+            "test_label": test_label,
+            "test_names": test_names,
+        }
+        save_pkl(os.path.join(args.save_feat_dir, "pheno_embs.pkl"), save_dict)
+    
     # Evaluate the performance of the extracted embeddings
-    data_dict = load_pkl(os.path.join(args.save_feat_dir, "ihm_embs.pkl"))
-    # use the first 48 time steps
-    print("Evaluate TS embs: ")
-    train_X = np.mean(data_dict["train_ts_embs"], axis=1)
-    train_Y = data_dict["train_label"]
-    val_X = np.mean(data_dict["val_ts_embs"], axis=1)
-    val_Y = data_dict["val_label"]
-    test_X = np.mean(data_dict["test_ts_embs"], axis=1)
-    test_Y = data_dict["test_label"]
-    eval_svm(train_X, train_Y, test_X, test_Y)
+    for task in ["ihm", "pheno"]:   
+        data_dict = load_pkl(os.path.join(args.save_feat_dir, f"{task}_embs.pkl"))
+        # data_dict = load_pkl(os.path.join(args.save_feat_dir, "ihm_embs.pkl"))
+        # use the first 48 time steps
+        print("Evaluate TS embs: ")
+        train_X = np.mean(data_dict["train_ts_embs"], axis=1)
+        train_Y = data_dict["train_label"]
+        val_X = np.mean(data_dict["val_ts_embs"], axis=1)
+        val_Y = data_dict["val_label"]
+        test_X = np.mean(data_dict["test_ts_embs"], axis=1)
+        test_Y = data_dict["test_label"]
+        eval_svm(train_X, train_Y, val_X, val_Y, test_X, test_Y)
 
-    print("Evaluate CXR embs: ")
-    train_X = np.mean(data_dict["train_cxr_embs"], axis=1)
-    train_Y = data_dict["train_label"]
-    val_X = np.mean(data_dict["val_cxr_embs"], axis=1)
-    val_Y = data_dict["val_label"]
-    test_X = np.mean(data_dict["test_cxr_embs"], axis=1)
-    test_Y = data_dict["test_label"]
-    eval_svm(train_X, train_Y, test_X, test_Y)
+        print("Evaluate CXR embs: ")
+        train_X = np.mean(data_dict["train_cxr_embs"], axis=1)
+        train_Y = data_dict["train_label"]
+        val_X = np.mean(data_dict["val_cxr_embs"], axis=1)
+        val_Y = data_dict["val_label"]
+        test_X = np.mean(data_dict["test_cxr_embs"], axis=1)
+        test_Y = data_dict["test_label"]
+        eval_svm(train_X, train_Y, val_X, val_Y, test_X, test_Y)
 
 
 if __name__ == "__main__":

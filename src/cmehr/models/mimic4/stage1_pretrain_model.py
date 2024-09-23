@@ -85,7 +85,7 @@ class MIMIC4PretrainModule(LightningModule):
         self.ts_conv1 = nn.Conv1d(self.orig_d_ts, self.embed_dim, kernel_size=1)
         self.img_conv1 = nn.Conv1d(self.embed_dim, self.embed_dim, kernel_size=1)
 
-        depth = 3
+        depth = 1
         self.ts_dilated_conv = DilatedConvEncoder(
             in_channels=self.embed_dim, 
             channels=[self.embed_dim] * depth + [self.embed_dim], 
@@ -255,6 +255,7 @@ class MIMIC4PretrainModule(LightningModule):
         # TODO: consider the reg_ts in the frequency domain ...
         batch_size = batch["ts"].size(0)
         reg_ts = batch["reg_ts"][..., :self.orig_d_ts]
+        # reg_ts = batch["reg_ts"]
 
         # create two augmentation view for regular TS
         ts_aug_1, ts_aug_2, crop_l = self.aug_reg_ts(reg_ts)

@@ -192,7 +192,6 @@ torchdiffeq==0.2.3
 torchmetrics==0.11.4
 tqdm==4.65.0
 traitlets==5.9.0
-transformers==4.37.2
 triton==2.0.0
 tsdb==0.5
 typeshed-client==2.2.0
@@ -211,4 +210,4 @@ websockets==11.0.1
 Werkzeug==3.0.1
 xgboost==2.0.3
 yarl==1.8.2
-transformers==4.44.2
+transformers
