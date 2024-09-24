@@ -19,8 +19,7 @@ torch.backends.cudnn.benchmark = True  # type: ignore
 torch.set_float32_matmul_precision("high")
 
 '''
-# CUDA_VISIBLE_DEVICES=0,1 python pretrain_mimic3.py --devices 2 --batch_size 256
-CUDA_VISIBLE_DEVICES=1,7 python pretrain_mimic3.py --devices 2 --batch_size 2
+CUDA_VISIBLE_DEVICES=2,3 python pretrain_mimic3.py --devices 2 --batch_size 2
 '''
 
 parser = ArgumentParser(description="Self-supervised pretraining for MIMIC III")
@@ -28,7 +27,8 @@ parser.add_argument("--batch_size", type=int, default=128)
 parser.add_argument("--num_workers", type=int, default=4)
 parser.add_argument("--max_epochs", type=int, default=100)
 parser.add_argument("--devices", type=int, default=1)
-parser.add_argument("--max_length", type=int, default=1024)
+parser.add_argument("--bert_type", type=str, default="prajjwal1/bert-tiny")
+parser.add_argument("--max_length", type=int, default=512)
 parser.add_argument("--accumulate_grad_batches", type=int, default=1)
 parser.add_argument("--first_nrows", type=int, default=-1)
 parser.add_argument("--ts_learning_rate", type=float, default=2e-5)
@@ -58,6 +58,8 @@ def cli_main():
         batch_size=args.batch_size,
         num_workers=args.num_workers,
         first_nrows=args.first_nrows,
+        bert_type=args.bert_type,
+        max_length=args.max_length,
         )
 
     model = MIMIC3PretrainModule(**vars(args))

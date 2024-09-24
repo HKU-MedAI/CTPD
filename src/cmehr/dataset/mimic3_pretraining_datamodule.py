@@ -206,6 +206,8 @@ class MIMIC3MultimodalDataModule(LightningDataModule):
                  num_workers: int = 1,
                  file_path: str = str(ROOT_PATH / "output_mimic4/self_supervised_multimodal"),
                  modeltype: str = "TS_Text",
+                 bert_type: str = "prajjwal1/bert-tiny",
+                 max_length: int = 512,
                  period_length: int = 100,
                  first_nrows: Optional[int] = None
                  ) -> None:
@@ -217,13 +219,15 @@ class MIMIC3MultimodalDataModule(LightningDataModule):
         self.first_nrows = first_nrows
         self.modeltype = modeltype
         self.period_length = period_length
+        self.bert_type = bert_type
+        self.max_length = max_length
 
     def train_dataloader(self) -> TRAIN_DATALOADERS:
         dataset = MIMIC3MultimodalDataset(
             file_path=self.file_path,
             split="train",
-            bert_type="yikuan8/Clinical-Longformer",
-            max_length=1024,
+            bert_type=self.bert_type,
+            max_length=self.max_length,
             first_nrows=None
         )
         dataloader = DataLoader(dataset=dataset,
@@ -238,8 +242,8 @@ class MIMIC3MultimodalDataModule(LightningDataModule):
         dataset = MIMIC3MultimodalDataset(
             file_path=self.file_path,
             split="val",
-            bert_type="yikuan8/Clinical-Longformer",
-            max_length=1024,
+            bert_type=self.bert_type,
+            max_length=self.max_length,
             first_nrows=None
         )
         dataloader = DataLoader(dataset=dataset,
@@ -254,8 +258,8 @@ class MIMIC3MultimodalDataModule(LightningDataModule):
         dataset = MIMIC3MultimodalDataset(
             file_path=self.file_path,
             split="test",
-            bert_type="yikuan8/Clinical-Longformer",
-            max_length=1024,
+            bert_type=self.bert_type,
+            max_length=self.max_length,
             first_nrows=None
         )
         dataloader = DataLoader(dataset=dataset,

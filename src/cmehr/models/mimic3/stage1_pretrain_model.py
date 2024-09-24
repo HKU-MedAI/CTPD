@@ -52,7 +52,7 @@ class MIMIC3PretrainModule(LightningModule):
                  num_imgs: int = 5,
                  period_length: float = 100,
                  cm_loss_weight: float = 0.,
-                 text_model_name: str = "yikuan8/Clinical-Longformer",
+                 bert_type: str = "yikuan8/Clinical-Longformer",
                  *args,
                  **kwargs
                  ):
@@ -72,8 +72,8 @@ class MIMIC3PretrainModule(LightningModule):
         self.warmup_epochs = warmup_epochs
 
         # need to use BERT here ...
-        Biobert = AutoModel.from_pretrained(text_model_name)
-        self.bertrep = BertForRepresentation(text_model_name, Biobert)
+        Biobert = AutoModel.from_pretrained(bert_type)
+        self.bertrep = BertForRepresentation(bert_type, Biobert)
 
         # can't train this model when bert are trainable
         # for param in self.bertrep.parameters():
@@ -86,7 +86,7 @@ class MIMIC3PretrainModule(LightningModule):
         '''
 
         self.ts_conv1 = nn.Conv1d(self.orig_d_ts, self.embed_dim, kernel_size=1)
-        self.text_conv1 = nn.Conv1d(768, self.embed_dim, kernel_size=1)
+        self.text_conv1 = nn.Conv1d(128, self.embed_dim, kernel_size=1)
 
         depth = 1
         self.ts_dilated_conv = DilatedConvEncoder(
