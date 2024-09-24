@@ -213,8 +213,12 @@ class MIMIC3LightningModule(LightningModule):
                       batch_size=len(self.test_step_outputs))
 
     def configure_optimizers(self):
-        optimizer = torch.optim.Adam(
-            self.parameters(), lr=self.ts_learning_rate)
+        optimizer = torch.optim.Adam([
+                {'params': [p for n, p in self.named_parameters()
+                            if 'bert' not in n]},
+                {'params': [p for n, p in self.named_parameters(
+                ) if 'bert' in n], 'lr': self.ts_learning_rate / 5}
+            ], lr=self.ts_learning_rate)
         lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
             optimizer, factor=0.4, patience=3, verbose=True, mode='max')
         scheduler = {
@@ -227,6 +231,7 @@ class MIMIC3LightningModule(LightningModule):
     
 
 class MIMIC3NoteModule(MIMIC3LightningModule):
+    ''' Specialized for note data. '''
     def __init__(self, 
                  task: str = "ihm", 
                  modeltype: str = "TS_CXR", 
@@ -237,5 +242,49 @@ class MIMIC3NoteModule(MIMIC3LightningModule):
                  **kwargs):
         super().__init__(task, modeltype, max_epochs, ts_learning_rate, period_length, *args, **kwargs)
 
-    def forward(self, batch, *args, **kwargs):
-        ipdb.set_trace()
+    def training_step(self, batch: Dict, batch_idx: int):
+        loss = self(
+            input_ids_sequences=batch["input_ids"],
+            attn_mask_sequences=batch["attention_mask"],
+            note_time_list=batch["note_time"],
+            note_time_mask_list=batch["note_time_mask"],
+            labels=batch["label"]
+        )
+        batch_size = batch["input_ids"].size(0)
+        self.log("train_loss", loss, on_step=True, on_epoch=True,
+                 sync_dist=True, prog_bar=True, batch_size=batch_size)
+
+        return loss
+
+    def on_validation_epoch_start(self) -> None:
+        self.validation_step_outputs = []
+
+    def validation_step(self, batch: Dict, batch_idx: int) -> STEP_OUTPUT:
+        logits = self(
+            input_ids_sequences=batch["input_ids"],
+            attn_mask_sequences=batch["attention_mask"],
+            note_time_list=batch["note_time"],
+            note_time_mask_list=batch["note_time_mask"]
+        )
+        return_dict = {
+            "logits": logits.detach().cpu().numpy(),
+            "label": batch["label"].detach().cpu().numpy()
+        }
+        self.validation_step_outputs.append(return_dict)
+
+    def on_test_epoch_start(self) -> None:
+        self.test_step_outputs = []
+
+    def test_step(self, batch: Dict, batch_idx: int) -> STEP_OUTPUT:
+        logits = self(
+            input_ids_sequences=batch["input_ids"],
+            attn_mask_sequences=batch["attention_mask"],
+            note_time_list=batch["note_time"],
+            note_time_mask_list=batch["note_time_mask"]
+        )
+
+        return_dict = {
+            "logits": logits.detach().cpu().numpy(),
+            "label": batch["label"].detach().cpu().numpy()
+        }
+        self.test_step_outputs.append(return_dict)

@@ -200,8 +200,10 @@ class MIMIC3DataModule(LightningDataModule):
                  num_workers: int = 1,
                  modeltype: str = "TS_Text",
                  file_path: str = str(ROOT_PATH / "output/ihm"),
-                 bert_type: str = "yikuan8/Clinical-Longformer",
-                 max_length: int = 1024,
+                #  bert_type: str = "yikuan8/Clinical-Longformer",
+                 bert_type: str = "prajjwal1/bert-tiny",
+                #  max_length: int = 1024,
+                 max_length: int = 512, 
                  tt_max: int = 48,
                  first_nrows: Optional[int] = None
                  ) -> None:
@@ -277,7 +279,7 @@ if __name__ == "__main__":
         modeltype="TS_Text",
         tt_max=48,
     )
-    print(dataset[0])
+    print(x)
     # datamodule = MIMIC3DataModule(
     #     file_path=str(DATA_PATH / "output_mimic3/pheno"),
     # )

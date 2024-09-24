@@ -11,17 +11,19 @@ import torch
 from lightning import Trainer, seed_everything
 from lightning.pytorch.callbacks import LearningRateMonitor, ModelCheckpoint, EarlyStopping
 from lightning.pytorch.loggers import WandbLogger
-from cmehr.dataset import MIMIC4DataModule, MIMIC3DataModule
-from cmehr.models.mimic4 import (
-    CNNModule, ProtoTSModel, IPNetModule, GRUDModule, SEFTModule,
-    MTANDModule, DGM2OModule, MedFuseModule)
+from cmehr.dataset import MIMIC3DataModule
+from cmehr.models.mimic3.mtand_model import MTANDModule
+from cmehr.models.mimic3.grud_model import GRUDModule
 from cmehr.paths import *
 
 torch.backends.cudnn.deterministic = True  # type: ignore
 torch.backends.cudnn.benchmark = True  # type: ignore
 torch.set_float32_matmul_precision("high")
 
-parser = ArgumentParser(description="PyTorch Lightning EHR Model")
+'''
+CUDA_VISIBLE_DEVICES=0 python run_note_baselines.py --task ihm --model_name grud
+'''
+parser = ArgumentParser(description="PyTorch Lightning EHR Model") 
 parser.add_argument("--task", type=str, default="pheno",
                     choices=["ihm", "decomp", "los", "pheno"])
 parser.add_argument("--batch_size", type=int, default=128)
@@ -33,20 +35,16 @@ parser.add_argument("--devices", type=int, default=1)
 parser.add_argument("--max_length", type=int, default=1024)
 parser.add_argument("--accumulate_grad_batches", type=int, default=1)
 parser.add_argument("--first_nrows", type=int, default=-1)
-parser.add_argument("--model_name", type=str, default="medfuse",
-                    choices=["proto_ts", "ipnet", "grud", "seft", "mtand", "dgm2",
-                             "medfuse", "cnn"])
-parser.add_argument("--modeltype", type=str, default="TS_CXR",
-                    choices=["TS_CXR", "TS", "CXR"],
-                    help="Set the model type to use for training")
+parser.add_argument("--model_name", type=str, default="mtand",
+                    choices=["mtand", "grud", "flat", "hiertrans"])
 parser.add_argument("--ts_learning_rate", type=float, default=4e-4)
 parser.add_argument("--ckpt_path", type=str,
                     default="")
 parser.add_argument("--test_only", action="store_true")
 parser.add_argument("--pooling_type", type=str, default="mean",
                     choices=["attention", "mean", "last"])
-parser.add_argument("--use_prototype", action="store_true")
-parser.add_argument("--use_multiscale", action="store_true")
+parser.add_argument("--bert_type", type=str, default="prajjwal1/bert-tiny",
+                    help="bert model type, it can be: prajjwal1/bert-tiny, yikuan8/Clinical-Longformer, etc.")
 args = parser.parse_args()
 
 
@@ -54,11 +52,7 @@ def cli_main():
 
     all_auroc = []
     all_auprc = []
-    all_f1_2 = []
-    all_f1_3 = []
-    all_f1_5 = []
-    all_f1_7 = []
-    all_f1_9 = []
+    all_f1 = []
 
     for seed in [41, 42, 43]:
         seed_everything(seed)
@@ -74,8 +68,9 @@ def cli_main():
 
         dm = MIMIC3DataModule(
             file_path=str(
-                DATA_PATH / f"output_mimic3/TS_CXR/{args.task}"),
-            modeltype=args.modeltype,
+                DATA_PATH / f"output_mimic3/{args.task}"),
+            bert_type=args.bert_type,
+            max_length=512,
             tt_max=args.period_length,
             batch_size=args.batch_size,
             num_workers=args.num_workers,
@@ -85,57 +80,21 @@ def cli_main():
         if args.test_only:
             args.devices = 1
 
-        if args.model_name == "ipnet":
+        if args.model_name == "mtand":
             if args.ckpt_path:
-                model = IPNetModule.load_from_checkpoint(
+                model = MTANDModule.load_from_checkpoint(
                     args.ckpt_path, **vars(args))
             else:
-                model = IPNetModule(**vars(args))
-        elif args.model_name == "proto_ts":
-            if args.ckpt_path:
-                model = ProtoTSModel.load_from_checkpoint(
-                    args.ckpt_path, **vars(args))
-            else:
-                model = ProtoTSModel(**vars(args))
+                model = MTANDModule(**vars(args))
         elif args.model_name == "grud":
             if args.ckpt_path:
                 model = GRUDModule.load_from_checkpoint(
                     args.ckpt_path, **vars(args))
             else:
                 model = GRUDModule(**vars(args))
-        elif args.model_name == "seft":
-            if args.ckpt_path:
-                model = SEFTModule.load_from_checkpoint(
-                    args.ckpt_path, **vars(args))
-            else:
-                model = SEFTModule(**vars(args))
-        elif args.model_name == "mtand":
-            if args.ckpt_path:
-                model = MTANDModule.load_from_checkpoint(
-                    args.ckpt_path, **vars(args))
-            else:
-                model = MTANDModule(**vars(args))
-        elif args.model_name == "dgm2":
-            if args.ckpt_path:
-                model = DGM2OModule.load_from_checkpoint(
-                    args.ckpt_path, **vars(args))
-            else:
-                model = DGM2OModule(**vars(args))
-        elif args.model_name == "medfuse":
-            if args.ckpt_path:
-                model = MedFuseModule.load_from_checkpoint(
-                    args.ckpt_path, **vars(args))
-            else:
-                model = MedFuseModule(**vars(args))
-        elif args.model_name == "cnn":
-            if args.ckpt_path:
-                model = CNNModule.load_from_checkpoint(
-                    args.ckpt_path, **vars(args))
-            else:
-                model = CNNModule(**vars(args))
         else:
             raise ValueError("Invalid model name")
-
+        
         # initialize trainer
         run_name = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
         run_name = f"mimic_{args.task}_{args.model_name}_{run_name}"
@@ -161,11 +120,11 @@ def cli_main():
                 LearningRateMonitor(logging_interval="step"),
                 ModelCheckpoint(
                     dirpath=str(ROOT_PATH / "log/ckpts" / run_name),
-                    monitor="val_auroc_macro",
+                    monitor="val_auroc",
                     mode="max",
                     save_top_k=2,
                     save_last=False),
-                EarlyStopping(monitor="val_auroc_macro", patience=5,
+                EarlyStopping(monitor="val_auroc", patience=5,
                               mode="max", verbose=True)
             ]
         trainer = Trainer(
@@ -188,20 +147,12 @@ def cli_main():
 
         all_auroc.append(model.report_auroc)
         all_auprc.append(model.report_auprc)
-        all_f1_2.append(model.report_f1_2)
-        all_f1_3.append(model.report_f1_3)
-        all_f1_5.append(model.report_f1_5)
-        all_f1_7.append(model.report_f1_7)
-        all_f1_9.append(model.report_f1_9)
+        all_f1.append(model.report_f1)
 
     report_df = pd.DataFrame({
         "auroc": all_auroc,
         "auprc": all_auprc,
-        "f1_2": all_f1_2,
-        "f1_3": all_f1_3,
-        "f1_5": all_f1_5,
-        "f1_7": all_f1_7,
-        "f1_9": all_f1_9
+        "f1": all_f1
     })
 
     mean_df = report_df.mean(axis=0)
