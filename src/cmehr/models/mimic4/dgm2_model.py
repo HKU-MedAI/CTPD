@@ -102,7 +102,6 @@ class GRU_unit_cluster(nn.Module):
 
     def forward(self, y_i, x):
         y_concat = torch.cat([y_i, x], -1)
-
         update_gate = self.update_gate(y_concat)
         reset_gate = self.reset_gate(y_concat)
 
@@ -217,7 +216,7 @@ class DGM2OModule(MIMIC4LightningModule):
                  ts_learning_rate: float = 4e-4,
                  period_length: int = 48,
                  latent_dim: int = 10,
-                 input_dim: int = 26,
+                 input_dim: int = 30,
                  cluster_num: int = 20,
                  z0_dim=10,
                  n_gru_units=10,
@@ -298,7 +297,7 @@ class DGM2OModule(MIMIC4LightningModule):
         self.pred_layer = nn.Linear(10 + static, self.num_labels)
 
         import json
-        with open("/home/**/Documents/CM-EHR/cmehr/resources/mimic4/discretizer_config.json", "r") as f:
+        with open("/home/fywang/Documents/MMMSPG/src/cmehr/preprocess/mimic3/mimic3models/resources/discretizer_config.json", "r") as f:
             config = json.load(f)
         variables = config["id_to_channel"]
         static_variables = ["Height", "Weight"]
@@ -333,7 +332,6 @@ class DGM2OModule(MIMIC4LightningModule):
             prev_y = torch.zeros((1, n_traj, self.latent_dim)).to(self.device)
 
             xi = data[:, 0, :].unsqueeze(0)
-
             all_y_i = self.GRU_update(prev_y, xi)
 
             all_y_i = F.softmax(all_y_i.unsqueeze(0), -1)

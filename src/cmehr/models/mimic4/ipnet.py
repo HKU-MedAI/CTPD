@@ -118,7 +118,7 @@ class IPNetModule(MIMIC4LightningModule):
         self.sci = SingleChannelInterp(
             ref_points=192,
             hours_look_ahead=period_length,
-            d_dim=60
+            d_dim=17*4
         )
         self.cci = CrossChannelInterp(d_dim=45)
 

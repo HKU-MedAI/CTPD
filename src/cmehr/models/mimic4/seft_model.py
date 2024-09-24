@@ -111,7 +111,7 @@ class SEFTModule(MIMIC4LightningModule):
         self.init_weights()
 
         import json
-        with open("/home/**/Documents/CM-EHR/cmehr/resources/mimic4/discretizer_config.json", "r") as f:
+        with open("/home/fywang/Documents/MMMSPG/src/cmehr/preprocess/mimic3/mimic3models/resources/discretizer_config.json", "r") as f:
             config = json.load(f)
         variables = config["id_to_channel"]
         static_variables = ["Height", "Weight"]

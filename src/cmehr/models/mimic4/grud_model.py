@@ -61,7 +61,7 @@ class GRUDModule(MIMIC4LightningModule):
                  img_learning_rate: float = 1e-4,
                  ts_learning_rate: float = 4e-4,
                  period_length: int = 48,
-                 input_size: int = 15,
+                 input_size: int = 17,
                  hidden_size: int = 15,
                  dropout: float = 0.1,
                  num_layers: int = 49,
