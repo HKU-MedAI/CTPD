@@ -5,3 +5,4 @@
 
 # python -m mimic3models.create_irregular_multimodal --dataset_path /data1/r20user2/EHR_dataset/mimiciii_benchmark/multimodal
 python -m mimic3models.create_iiregular_ts --task ihm 
+python -m mimic3models.create_iiregular_ts --task pheno

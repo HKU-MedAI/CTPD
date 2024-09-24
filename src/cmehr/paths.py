@@ -5,8 +5,8 @@ from pathlib import Path
 
 
 ROOT_PATH = Path(__file__).parent.parent.parent
-# DATA_PATH = Path("/disk1/fywang/EHR_dataset")
-DATA_PATH = Path("/data1/r10user2/EHR_dataset")
+DATA_PATH = Path("/disk1/fywang/EHR_dataset")
+# DATA_PATH = Path("/data1/r10user2/EHR_dataset")
 # DATA_PATH = Path("/data1/r20user2/EHR_dataset")
 
 # path for mimic iii dataset

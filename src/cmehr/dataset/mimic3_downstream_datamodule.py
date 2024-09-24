@@ -279,9 +279,9 @@ if __name__ == "__main__":
         modeltype="TS_Text",
         tt_max=48,
     )
-    print(x)
+    print(dataset[0])
     # datamodule = MIMIC3DataModule(
-    #     file_path=str(DATA_PATH / "output_mimic3/pheno"),
+    #     file_path=str(DATA_PATH / "mimiciii_benchmark/output_mimic3/pheno"),
     # )
     # batch = dict()
     # for batch in datamodule.val_dataloader():

@@ -468,9 +468,9 @@ def create_irregular_ts():
         )
 
     train_textdata_fixed = MIMIC3_BENCHMARK_PATH / "train_text_fixed"
-    train_starttime_path = MIMIC3_BENCHMARK_PATH / "train_starttime.pkl"
+    train_starttime_path = MIMIC3_BENCHMARK_PATH / "train_text_fixed/train_starttime.pkl"
     test_textdata_fixed = MIMIC3_BENCHMARK_PATH / "test_text_fixed"
-    test_starttime_path = MIMIC3_BENCHMARK_PATH / "test_starttime.pkl"
+    test_starttime_path = MIMIC3_BENCHMARK_PATH / "test_text_fixed/test_starttime.pkl"
 
     print("Step 5: Load Text data")
     for mode in ['train', 'val', 'test']:

@@ -104,7 +104,7 @@ class InHospitalMortalityReader(Reader):
         """
         Reader.__init__(self, dataset_dir, listfile)
         self._data = [line.split(',') for line in self._data]
-        self._data = [(x, int(y)) for (x, _, _, y) in self._data]
+        self._data = [(x, int(y)) for (x, y) in self._data]
         self._period_length = period_length
         self.columns = columns
 
@@ -227,14 +227,14 @@ class PhenotypingReader(Reader):
         self._data = [line.split(',') for line in self._data]
         self.data_map = {
             mas[0]: {
-                'labels': list(map(int, mas[3:])),
-                'stay_id': float(mas[2]),
+                'labels': list(map(int, mas[2:])),
+                # 'stay_id': float(mas[2]),
                 'time': float(mas[1]),
                 }
                 for mas in self._data
         }
 
-        self._data = [(mas[0], float(mas[1]), list(map(int, mas[3:]))) for mas in self._data]
+        self._data = [(mas[0], float(mas[1]), list(map(int, mas[2:]))) for mas in self._data]
         self.columns = columns
 
     def _read_timeseries(self, ts_filename, time_bound=None):
@@ -263,7 +263,7 @@ class PhenotypingReader(Reader):
         # timeseries_path = self.ehr_paths[index]
         t = self.data_map[index]['time'] if time_bound is None else time_bound
         y = self.data_map[index]['labels']
-        stay_id = self.data_map[index]['stay_id']
+        # stay_id = self.data_map[index]['stay_id']
         # name = self._data[index][0]
         # t = self._data[index][1]
         # y = self._data[index][2] 
@@ -272,7 +272,7 @@ class PhenotypingReader(Reader):
         return {"X": X,
                 "t": t,
                 "y": y,
-                'stay_id': stay_id,
+                # 'stay_id': stay_id,
                 "header": header,
                 "name": index}
 
