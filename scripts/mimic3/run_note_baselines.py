@@ -16,6 +16,8 @@ from cmehr.models.mimic3.mtand_model import MTANDModule
 from cmehr.models.mimic3.grud_model import GRUDModule
 from cmehr.models.mimic3.flat_model import FlatModule
 from cmehr.models.mimic3.transformer_model import HierTransformerModule
+from cmehr.models.mimic3.tlstm_model import TLSTMModule
+from cmehr.models.mimic3.ftlstm_model import FTLSTMModule
 from cmehr.paths import *
 
 torch.backends.cudnn.deterministic = True  # type: ignore
@@ -38,7 +40,8 @@ parser.add_argument("--max_length", type=int, default=1024)
 parser.add_argument("--accumulate_grad_batches", type=int, default=1)
 parser.add_argument("--first_nrows", type=int, default=-1)
 parser.add_argument("--model_name", type=str, default="mtand",
-                    choices=["mtand", "grud", "flat", "hiertrans"])
+                    choices=["mtand", "grud", "flat", "hiertrans",
+                             "tlstm", "ftlstm"])
 parser.add_argument("--ts_learning_rate", type=float, default=4e-4)
 parser.add_argument("--ckpt_path", type=str,
                     default="")
@@ -106,6 +109,20 @@ def cli_main():
                     args.ckpt_path, **vars(args))
             else:
                 model = HierTransformerModule(**vars(args))
+        elif args.model_name == "tlstm":
+            if args.ckpt_path:
+                model = TLSTMModule.load_from_checkpoint(
+                    args.ckpt_path, **vars(args))
+            else:
+                model = TLSTMModule(**vars(args))
+        elif args.model_name == "ftlstm":
+            # need to fix the batch size
+            args.batch_size = 1
+            if args.ckpt_path:
+                model = FTLSTMModule.load_from_checkpoint(
+                    args.ckpt_path, **vars(args))
+            else:
+                model = FTLSTMModule(**vars(args))
         else:
             raise ValueError("Invalid model name")
         
