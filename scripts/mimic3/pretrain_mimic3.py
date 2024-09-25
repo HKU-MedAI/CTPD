@@ -19,7 +19,7 @@ torch.backends.cudnn.benchmark = True  # type: ignore
 torch.set_float32_matmul_precision("high")
 
 '''
-CUDA_VISIBLE_DEVICES=2,3 python pretrain_mimic3.py --devices 2 --batch_size 2
+CUDA_VISIBLE_DEVICES=2,3 python pretrain_mimic3.py --devices 2 --batch_size 128
 '''
 
 parser = ArgumentParser(description="Self-supervised pretraining for MIMIC III")

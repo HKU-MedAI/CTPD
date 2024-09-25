@@ -14,6 +14,8 @@ from lightning.pytorch.loggers import WandbLogger
 from cmehr.dataset import MIMIC3DataModule
 from cmehr.models.mimic3.mtand_model import MTANDModule
 from cmehr.models.mimic3.grud_model import GRUDModule
+from cmehr.models.mimic3.flat_model import FlatModule
+from cmehr.models.mimic3.transformer_model import HierTransformerModule
 from cmehr.paths import *
 
 torch.backends.cudnn.deterministic = True  # type: ignore
@@ -92,6 +94,18 @@ def cli_main():
                     args.ckpt_path, **vars(args))
             else:
                 model = GRUDModule(**vars(args))
+        elif args.model_name == "flat":
+            if args.ckpt_path:
+                model = FlatModule.load_from_checkpoint(
+                    args.ckpt_path, **vars(args))
+            else:
+                model = FlatModule(**vars(args))
+        elif args.model_name == "hiertrans":
+            if args.ckpt_path:
+                model = HierTransformerModule.load_from_checkpoint(
+                    args.ckpt_path, **vars(args))
+            else:
+                model = HierTransformerModule(**vars(args))
         else:
             raise ValueError("Invalid model name")
         

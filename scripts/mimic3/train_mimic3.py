@@ -47,7 +47,7 @@ parser.add_argument("--use_multiscale", action="store_true")
 args = parser.parse_args()
 
 '''
-CUDA_VISIBLE_DEVICES=2 python train_mimic3.py --devices 1 --task ihm --batch_size 128 --model_name grud
+CUDA_VISIBLE_DEVICES=2 python train_mimic3.py --devices 1 --task ihm --batch_size 128 --model_name dgm2
 '''
 
 args.orig_reg_d_ts = 34
