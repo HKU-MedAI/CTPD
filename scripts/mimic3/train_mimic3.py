@@ -14,7 +14,7 @@ from lightning.pytorch.loggers import WandbLogger
 from cmehr.dataset import MIMIC4DataModule, MIMIC3DataModule
 from cmehr.models.mimic4 import (
     CNNModule, ProtoTSModel, IPNetModule, GRUDModule, SEFTModule,
-    MTANDModule, DGM2OModule, MedFuseModule)
+    MTANDModule, DGM2OModule, MedFuseModule, UTDEModule)
 from cmehr.paths import *
 
 torch.backends.cudnn.deterministic = True  # type: ignore
@@ -35,7 +35,7 @@ parser.add_argument("--accumulate_grad_batches", type=int, default=1)
 parser.add_argument("--first_nrows", type=int, default=-1)
 parser.add_argument("--model_name", type=str, default="medfuse",
                     choices=["proto_ts", "ipnet", "grud", "seft", "mtand", "dgm2",
-                             "medfuse", "cnn"])
+                             "medfuse", "cnn", "utde"])
 parser.add_argument("--ts_learning_rate", type=float, default=4e-4)
 parser.add_argument("--ckpt_path", type=str,
                     default="")
@@ -47,7 +47,8 @@ parser.add_argument("--use_multiscale", action="store_true")
 args = parser.parse_args()
 
 '''
-CUDA_VISIBLE_DEVICES=2 python train_mimic3.py --devices 1 --task ihm --batch_size 128 --model_name dgm2
+CUDA_VISIBLE_DEVICES=3 python train_mimic3.py --devices 1 --task ihm --batch_size 128 --model_name utde 
+CUDA_VISIBLE_DEVICES=4 python train_mimic3.py --devices 1 --task pheno --batch_size 128 --model_name utde 
 '''
 
 args.orig_reg_d_ts = 34
@@ -68,8 +69,10 @@ def cli_main():
 
         if args.task == "ihm":
             args.period_length = 48
+            args.num_labels = 2
         elif args.task == "pheno":
             args.period_length = 24
+            args.num_labels = 25
 
         dm = MIMIC3DataModule(
             file_path=str(
@@ -132,6 +135,12 @@ def cli_main():
                     args.ckpt_path, **vars(args))
             else:
                 model = CNNModule(**vars(args))
+        elif args.model_name == "utde":
+            if args.ckpt_path:
+                model = UTDEModule.load_from_checkpoint(
+                    args.ckpt_path, **vars(args))
+            else:
+                model = UTDEModule(**vars(args))
         else:
             raise ValueError("Invalid model name")
 
@@ -160,11 +169,11 @@ def cli_main():
                 LearningRateMonitor(logging_interval="step"),
                 ModelCheckpoint(
                     dirpath=str(ROOT_PATH / "log/ckpts" / run_name),
-                    monitor="val_auroc_macro",
+                    monitor="val_auroc",
                     mode="max",
                     save_top_k=2,
                     save_last=False),
-                EarlyStopping(monitor="val_auroc_macro", patience=5,
+                EarlyStopping(monitor="val_auroc", patience=5,
                               mode="max", verbose=True)
             ]
         trainer = Trainer(

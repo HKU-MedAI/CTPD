@@ -13,3 +13,4 @@ from .millet_model import MILLETModule
 from .otk_model import OTKModule
 from .camelot_model import CAMELOTModule
 from .tslanet_model import TSLANETModule
+from .UTDE_model import UTDEModule

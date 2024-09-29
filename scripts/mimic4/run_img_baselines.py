@@ -11,13 +11,14 @@ import torch
 from lightning import Trainer, seed_everything
 from lightning.pytorch.callbacks import LearningRateMonitor, ModelCheckpoint, EarlyStopping
 from lightning.pytorch.loggers import WandbLogger
-from cmehr.dataset import MIMIC3DataModule
-from cmehr.models.mimic3.mtand_model import MTANDModule
-from cmehr.models.mimic3.grud_model import GRUDModule
-from cmehr.models.mimic3.flat_model import FlatModule
-from cmehr.models.mimic3.transformer_model import HierTransformerModule
-from cmehr.models.mimic3.tlstm_model import TLSTMModule
-from cmehr.models.mimic3.ftlstm_model import FTLSTMModule
+# from cmehr.dataset import MIMIC3DataModule
+from cmehr.dataset import MIMIC4DataModule
+from cmehr.models.mimic4.CXR.mtand_model import MTANDModule
+from cmehr.models.mimic4.CXR.grud_model import GRUDModule
+from cmehr.models.mimic4.CXR.flat_model import FlatModule
+from cmehr.models.mimic4.CXR.transformer_model import HierTransformerModule
+from cmehr.models.mimic4.CXR.tlstm_model import TLSTMModule
+from cmehr.models.mimic4.CXR.ftlstm_model import FTLSTMModule
 from cmehr.paths import *
 
 torch.backends.cudnn.deterministic = True  # type: ignore
@@ -73,16 +74,18 @@ def cli_main():
 
         if args.model_name == "ftlstm":
             args.batch_size = 1
-        dm = MIMIC3DataModule(
+        
+        dm = MIMIC4DataModule(
+            mimic_cxr_dir=str(MIMIC_CXR_JPG_PATH),
             file_path=str(
-                DATA_PATH / f"output_mimic3/{args.task}"),
-            bert_type=args.bert_type,
-            max_length=512,
-            tt_max=args.period_length,
+                DATA_PATH / f"output_mimic4/{args.task}"),
+            period_length=args.period_length,
             batch_size=args.batch_size,
             num_workers=args.num_workers,
-            first_nrows=args.first_nrows)
-
+            first_nrows=args.first_nrows,
+            num_imgs=args.num_imgs
+            )
+        
         # define model
         if args.test_only:
             args.devices = 1

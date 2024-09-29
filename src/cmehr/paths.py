@@ -25,5 +25,6 @@ MIMIC4_PHENO_24H_PATH = MIMIC4_BENCHMARK_PATH / "phenotyping_24h"
 MIMIC4_CXR_CSV_IHM = MIMIC4_BENCHMARK_PATH / "cxr/admission_w_cxr_ihm.csv"
 MIMIC4_CXR_CSV_PHENO = MIMIC4_BENCHMARK_PATH / "cxr/admission_w_cxr_pheno.csv"
 
-MIMIC_CXR_JPG_PATH = "/disk1/fywang/CXR_dataset/mimic_data/2.0.0/files"
+# MIMIC_CXR_JPG_PATH = "/disk1/fywang/CXR_dataset/mimic_data/2.0.0/files"
 # MIMIC_CXR_JPG_PATH = "/data1/r20user2/CXR_dataset/mimic_data/2.0.0/files"
+MIMIC_CXR_JPG_PATH = "/data1/r10user2/CXR_dataset/mimic_data/2.0.0/files"
