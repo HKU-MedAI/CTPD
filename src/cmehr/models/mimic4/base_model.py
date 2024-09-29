@@ -33,9 +33,9 @@ class MIMIC4LightningModule(MIMIC3LightningModule):
                 x_ts_mask=batch["ts_mask"],
                 ts_tt_list=batch["ts_tt"],
                 reg_ts=batch["reg_ts"],
-                cxr_imgs_sequences=batch["cxr_imgs"],
-                cxr_time_sequences=batch["cxr_time"],
-                cxr_time_mask_sequences=batch["cxr_time_mask"],
+                cxr_imgs=batch["cxr_imgs"],
+                cxr_time=batch["cxr_time"],
+                cxr_time_mask=batch["cxr_time_mask"],
                 labels=batch["label"],
             )
         elif self.modeltype == "TS":
@@ -48,9 +48,9 @@ class MIMIC4LightningModule(MIMIC3LightningModule):
             )
         elif self.modeltype == "CXR":
             loss = self(
-                cxr_imgs_sequences=batch["cxr_imgs"],
-                cxr_time_sequences=batch["cxr_time"],
-                cxr_time_mask_sequences=batch["cxr_time_mask"],
+                cxr_imgs=batch["cxr_imgs"],
+                cxr_time=batch["cxr_time"],
+                cxr_time_mask=batch["cxr_time_mask"],
                 labels=batch["label"],
             )
         else:
@@ -72,9 +72,9 @@ class MIMIC4LightningModule(MIMIC3LightningModule):
                 x_ts_mask=batch["ts_mask"],
                 ts_tt_list=batch["ts_tt"],
                 reg_ts=batch["reg_ts"],
-                cxr_imgs_sequences=batch["cxr_imgs"],
-                cxr_time_sequences=batch["cxr_time"],
-                cxr_time_mask_sequences=batch["cxr_time_mask"],
+                cxr_imgs=batch["cxr_imgs"],
+                cxr_time=batch["cxr_time"],
+                cxr_time_mask=batch["cxr_time_mask"],
             )
         elif self.modeltype == "TS":
             logits = self(
@@ -85,9 +85,9 @@ class MIMIC4LightningModule(MIMIC3LightningModule):
             )
         elif self.modeltype == "CXR":
             logits = self(
-                cxr_imgs_sequences=batch["cxr_imgs"],
-                cxr_time_sequences=batch["cxr_time"],
-                cxr_time_mask_sequences=batch["cxr_time_mask"],
+                cxr_imgs=batch["cxr_imgs"],
+                cxr_time=batch["cxr_time"],
+                cxr_time_mask=batch["cxr_time_mask"],
             )
         else:
             raise NotImplementedError
@@ -108,9 +108,9 @@ class MIMIC4LightningModule(MIMIC3LightningModule):
                 x_ts_mask=batch["ts_mask"],
                 ts_tt_list=batch["ts_tt"],
                 reg_ts=batch["reg_ts"],
-                cxr_imgs_sequences=batch["cxr_imgs"],
-                cxr_time_sequences=batch["cxr_time"],
-                cxr_time_mask_sequences=batch["cxr_time_mask"],
+                cxr_imgs=batch["cxr_imgs"],
+                cxr_time=batch["cxr_time"],
+                cxr_time_mask=batch["cxr_time_mask"],
             )
         elif self.modeltype == "TS":
             logits = self(
@@ -121,9 +121,9 @@ class MIMIC4LightningModule(MIMIC3LightningModule):
             )
         elif self.modeltype == "CXR":
             logits = self(
-                cxr_imgs_sequences=batch["cxr_imgs"],
-                cxr_time_sequences=batch["cxr_time"],
-                cxr_time_mask_sequences=batch["cxr_time_mask"],
+                cxr_imgs=batch["cxr_imgs"],
+                cxr_time=batch["cxr_time"],
+                cxr_time_mask=batch["cxr_time_mask"],
             )
         else:
             raise NotImplementedError

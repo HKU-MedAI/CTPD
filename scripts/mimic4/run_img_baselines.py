@@ -13,12 +13,12 @@ from lightning.pytorch.callbacks import LearningRateMonitor, ModelCheckpoint, Ea
 from lightning.pytorch.loggers import WandbLogger
 # from cmehr.dataset import MIMIC3DataModule
 from cmehr.dataset import MIMIC4DataModule
-from cmehr.models.mimic4.CXR.mtand_model import MTANDModule
-from cmehr.models.mimic4.CXR.grud_model import GRUDModule
-from cmehr.models.mimic4.CXR.flat_model import FlatModule
-from cmehr.models.mimic4.CXR.transformer_model import HierTransformerModule
-from cmehr.models.mimic4.CXR.tlstm_model import TLSTMModule
-from cmehr.models.mimic4.CXR.ftlstm_model import FTLSTMModule
+from cmehr.models.mimic4.CXR.mtand_model import MIMIC4MTANDModule
+# from cmehr.models.mimic4.CXR.grud_model import GRUDModule
+from cmehr.models.mimic4.CXR.flat_model import MIMIC4FlatModule
+from cmehr.models.mimic4.CXR.transformer_model import MIMIC4HierTransformerModule
+# from cmehr.models.mimic4.CXR.tlstm_model import TLSTMModule
+# from cmehr.models.mimic4.CXR.ftlstm_model import FTLSTMModule
 from cmehr.paths import *
 
 torch.backends.cudnn.deterministic = True  # type: ignore
@@ -26,12 +26,13 @@ torch.backends.cudnn.benchmark = True  # type: ignore
 torch.set_float32_matmul_precision("high")
 
 '''
-CUDA_VISIBLE_DEVICES=0 python run_note_baselines.py --task ihm --model_name grud
+CUDA_VISIBLE_DEVICES=6 python run_img_baselines.py --task ihm --model_name mtand
+CUDA_VISIBLE_DEVICES=7 python run_img_baselines.py --task pheno --model_name mtand
 '''
 parser = ArgumentParser(description="PyTorch Lightning EHR Model") 
 parser.add_argument("--task", type=str, default="pheno",
                     choices=["ihm", "decomp", "los", "pheno"])
-parser.add_argument("--batch_size", type=int, default=128)
+parser.add_argument("--batch_size", type=int, default=16)
 parser.add_argument("--num_workers", type=int, default=4)
 parser.add_argument("--update_counts", type=int, default=3)
 parser.add_argument("--max_epochs", type=int, default=50)
@@ -40,6 +41,7 @@ parser.add_argument("--devices", type=int, default=1)
 parser.add_argument("--max_length", type=int, default=1024)
 parser.add_argument("--accumulate_grad_batches", type=int, default=1)
 parser.add_argument("--first_nrows", type=int, default=-1)
+parser.add_argument("--num_imgs", type=int, default=5)
 parser.add_argument("--model_name", type=str, default="mtand",
                     choices=["mtand", "grud", "flat", "hiertrans",
                              "tlstm", "ftlstm"])
@@ -78,12 +80,12 @@ def cli_main():
         dm = MIMIC4DataModule(
             mimic_cxr_dir=str(MIMIC_CXR_JPG_PATH),
             file_path=str(
-                DATA_PATH / f"output_mimic4/{args.task}"),
+                DATA_PATH / f"output_mimic4/TS_CXR/{args.task}"),
             period_length=args.period_length,
             batch_size=args.batch_size,
             num_workers=args.num_workers,
             first_nrows=args.first_nrows,
-            num_imgs=args.num_imgs
+            # num_imgs=args.num_imgs
             )
         
         # define model
@@ -92,41 +94,41 @@ def cli_main():
 
         if args.model_name == "mtand":
             if args.ckpt_path:
-                model = MTANDModule.load_from_checkpoint(
+                model = MIMIC4MTANDModule.load_from_checkpoint(
                     args.ckpt_path, **vars(args))
             else:
-                model = MTANDModule(**vars(args))
-        elif args.model_name == "grud":
-            if args.ckpt_path:
-                model = GRUDModule.load_from_checkpoint(
-                    args.ckpt_path, **vars(args))
-            else:
-                model = GRUDModule(**vars(args))
+                model = MIMIC4MTANDModule(**vars(args))
+        # elif args.model_name == "grud":
+        #     if args.ckpt_path:
+        #         model = GRUDModule.load_from_checkpoint(
+        #             args.ckpt_path, **vars(args))
+        #     else:
+        #         model = GRUDModule(**vars(args))
         elif args.model_name == "flat":
             if args.ckpt_path:
-                model = FlatModule.load_from_checkpoint(
+                model = MIMIC4FlatModule.load_from_checkpoint(
                     args.ckpt_path, **vars(args))
             else:
-                model = FlatModule(**vars(args))
+                model = MIMIC4FlatModule(**vars(args))
         elif args.model_name == "hiertrans":
             if args.ckpt_path:
-                model = HierTransformerModule.load_from_checkpoint(
+                model = MIMIC4HierTransformerModule.load_from_checkpoint(
                     args.ckpt_path, **vars(args))
             else:
-                model = HierTransformerModule(**vars(args))
-        elif args.model_name == "tlstm":
-            if args.ckpt_path:
-                model = TLSTMModule.load_from_checkpoint(
-                    args.ckpt_path, **vars(args))
-            else:
-                model = TLSTMModule(**vars(args))
-        elif args.model_name == "ftlstm":
-            # need to fix the batch size
-            if args.ckpt_path:
-                model = FTLSTMModule.load_from_checkpoint(
-                    args.ckpt_path, **vars(args))
-            else:
-                model = FTLSTMModule(**vars(args))
+                model = MIMIC4HierTransformerModule(**vars(args))
+        # elif args.model_name == "tlstm":
+        #     if args.ckpt_path:
+        #         model = TLSTMModule.load_from_checkpoint(
+        #             args.ckpt_path, **vars(args))
+        #     else:
+        #         model = TLSTMModule(**vars(args))
+        # elif args.model_name == "ftlstm":
+        #     # need to fix the batch size
+        #     if args.ckpt_path:
+        #         model = FTLSTMModule.load_from_checkpoint(
+        #             args.ckpt_path, **vars(args))
+        #     else:
+        #         model = FTLSTMModule(**vars(args))
         else:
             raise ValueError("Invalid model name")
         

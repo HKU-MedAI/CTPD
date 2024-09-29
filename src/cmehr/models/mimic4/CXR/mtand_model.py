@@ -50,24 +50,23 @@ class MIMIC4MTANDModule(MIMIC4LightningModule):
                  num_heads: int = 8,
                  layers: int = 3,
                  dropout: float = 0.1,
-                 irregular_learn_emb_text: bool = True,
+                 irregular_learn_emb_img: bool = True,
                  reg_ts: bool = True,
                  pooling_type: str = "mean",
                  lamb: float = 1.,
                  embed_time: int = 64,
                  embed_dim: int = 128,
-                 bert_type: str = "prajjwal1/bert-tiny",
                  *args,
                  **kwargs
                  ):
-        super().__init__(task=task, modeltype=modeltype, max_epochs=max_epochs,
+        super().__init__(task=task, modeltype="CXR", max_epochs=max_epochs,
                          ts_learning_rate=ts_learning_rate, period_length=period_length)
         self.save_hyperparameters()
 
         self.num_heads = num_heads
         self.layers = layers
         self.dropout = dropout
-        self.irregular_learn_emb_text = irregular_learn_emb_text
+        self.irregular_learn_emb_img = irregular_learn_emb_img
         self.task = task
         self.tt_max = period_length
         self.embed_dim = embed_dim
@@ -75,30 +74,16 @@ class MIMIC4MTANDModule(MIMIC4LightningModule):
         self.lamb = lamb
 
         self.img_encoder = get_biovil_t_image_encoder()
-        # Don't freeze image encoder
-        # for param in self.img_encoder.parameters():
-        #     param.requires_grad = False
         self.img_embed_dim = 512
-        self.img_proj_layer = nn.Linear(self.img_embed_dim, embed_dim)
 
-        if self.irregular_learn_emb_text:
+        if self.irregular_learn_emb_img:
             # formulate the regular time stamps
             self.periodic = nn.Linear(1, embed_time-1)
             self.linear = nn.Linear(1, 1)
             self.time_query = torch.linspace(0, 1., self.tt_max)
             self.time_attn = multiTimeAttention(
-                128, self.embed_dim, embed_time, 8)
+                self.img_embed_dim, self.embed_dim, embed_time, 8)
             
-            # if bert_type == "prajjwal1/bert-tiny":
-            #     self.time_attn = multiTimeAttention(
-            #         128, self.embed_dim, embed_time, 8)
-            # elif bert_type == "yikuan8/Clinical-Longformer":
-            #     self.time_attn = multiTimeAttention(
-            #         512, self.embed_dim, embed_time, 8)
-
-        # Biobert = AutoModel.from_pretrained(bert_type)
-        # self.bertrep = BertForRepresentation(bert_type, Biobert)
-
         self.proj1 = nn.Linear(self.embed_dim, self.embed_dim)
         self.proj2 = nn.Linear(self.embed_dim, self.embed_dim)
         self.out_layer = nn.Linear(self.embed_dim, self.num_labels)
@@ -114,31 +99,34 @@ class MIMIC4MTANDModule(MIMIC4LightningModule):
 
 
     def forward(self,
-                input_ids_sequences=None,
-                attn_mask_sequences=None,
-                note_time_list=None,
-                note_time_mask_list=None,
-                labels=None, reg_ts=None,
+                cxr_imgs: torch.Tensor,
+                cxr_time: torch.Tensor,
+                cxr_time_mask: torch.Tensor,
+                labels=None,
                 **kwargs):
         
-        x_txt = self.bertrep(input_ids_sequences, attn_mask_sequences)
-        if self.irregular_learn_emb_text:
+        batch_size = cxr_imgs.size(0)
+        flatten_imgs = rearrange(cxr_imgs, 'b n c h w -> (b n) c h w')
+        x_img = self.img_encoder(flatten_imgs).img_embedding
+        x_img = rearrange(x_img, '(b n) c -> b n c', b=batch_size)
+
+        if self.irregular_learn_emb_img:
             time_query = self.learn_time_embedding(
-                self.time_query.unsqueeze(0).type_as(x_txt))
+                self.time_query.unsqueeze(0).type_as(x_img))
             # (B, N_text) -> (B, N_text, embed_time)
             time_key = self.learn_time_embedding(
-                note_time_list)
+                cxr_time)
             # (B, N_r, embed_time)
-            proj_x_txt = self.time_attn(
-                time_query, time_key, x_txt, note_time_mask_list)
-            proj_x_txt = proj_x_txt.transpose(0, 1)
+            proj_x_img = self.time_attn(
+                time_query, time_key, x_img, cxr_time_mask)
+            proj_x_img = proj_x_img.transpose(0, 1)
         else:
-            x_txt = x_txt.transpose(1, 2)
-            proj_x_txt = x_txt if self.orig_d_txt == self.d_txt else self.proj_txt(
-                x_txt)
-            proj_x_txt = proj_x_txt.permute(2, 0, 1)
+            x_img = x_img.transpose(1, 2)
+            proj_x_img = x_img if self.orig_d_txt == self.d_txt else self.proj_txt(
+                x_img)
+            proj_x_img = proj_x_img.permute(2, 0, 1)
 
-        last_feat = proj_x_txt.permute(1, 0, 2)
+        last_feat = proj_x_img.permute(1, 0, 2)
         # attention pooling
         if self.pooling_type == "attention":
             attn, last_feat = self.atten_pooling(last_feat)
@@ -185,26 +173,26 @@ if __name__ == "__main__":
     for batch in datamodule.val_dataloader():
         break
     for k, v in batch.items():
-        print(f"{k}: ", v.shape)
+        if isinstance(v, torch.Tensor):
+            print(f"{k}: ", v.shape)
 
     """
-    ts: torch.Size([4, 157, 17])
-    ts_mask:  torch.Size([4, 157, 17])
-    ts_tt:  torch.Size([4, 157])
-    reg_ts:  torch.Size([4, 48, 34])
-    input_ids:  torch.Size([4, 5, 128])
-    attention_mask:  torch.Size([4, 5, 128])
-    note_time:  torch.Size([4, 5])
-    note_time_mask: torch.Size([4, 5])
-    label: torch.Size([4])
+    ts:  torch.Size([4, 64, 15])
+    ts_mask:  torch.Size([4, 64, 15])
+    ts_tt:  torch.Size([4, 64])
+    reg_ts:  torch.Size([4, 24, 30])
+    cxr_imgs:  torch.Size([4, 5, 3, 512, 512])
+    cxr_time:  torch.Size([4, 5])
+    cxr_time_mask:  torch.Size([4, 5])
+    reg_imgs:  torch.Size([4, 5, 3, 512, 512])
+    reg_imgs_mask:  torch.Size([4, 5])
+    label:  torch.Size([4, 25])
     """
-    model = MIMIC4MTANDModule(
-    )
+    model = MIMIC4MTANDModule()
     loss = model(
-        input_ids_sequences=batch["input_ids"],
-        attn_mask_sequences=batch["attention_mask"],
-        note_time_list=batch["note_time"],
-        note_time_mask_list=batch["note_time_mask"],
+        cxr_imgs=batch["cxr_imgs"],
+        cxr_time=batch["cxr_time"],
+        cxr_time_mask=batch["cxr_time_mask"],
     )
     print(loss)
 
