@@ -17,7 +17,7 @@ from cmehr.models.mimic4.CXR.mtand_model import MIMIC4MTANDModule
 # from cmehr.models.mimic4.CXR.grud_model import GRUDModule
 from cmehr.models.mimic4.CXR.flat_model import MIMIC4FlatModule
 from cmehr.models.mimic4.CXR.transformer_model import MIMIC4HierTransformerModule
-# from cmehr.models.mimic4.CXR.tlstm_model import TLSTMModule
+from cmehr.models.mimic4.CXR.tlstm_model import MIMIC4TLSTMModule
 # from cmehr.models.mimic4.CXR.ftlstm_model import FTLSTMModule
 from cmehr.paths import *
 
@@ -116,12 +116,12 @@ def cli_main():
                     args.ckpt_path, **vars(args))
             else:
                 model = MIMIC4HierTransformerModule(**vars(args))
-        # elif args.model_name == "tlstm":
-        #     if args.ckpt_path:
-        #         model = TLSTMModule.load_from_checkpoint(
-        #             args.ckpt_path, **vars(args))
-        #     else:
-        #         model = TLSTMModule(**vars(args))
+        elif args.model_name == "tlstm":
+            if args.ckpt_path:
+                model = MIMIC4TLSTMModule.load_from_checkpoint(
+                    args.ckpt_path, **vars(args))
+            else:
+                model = MIMIC4TLSTMModule(**vars(args))
         # elif args.model_name == "ftlstm":
         #     # need to fix the batch size
         #     if args.ckpt_path:

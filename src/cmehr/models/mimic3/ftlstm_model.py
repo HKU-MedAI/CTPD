@@ -178,7 +178,10 @@ class FTLSTMModule(MIMIC3NoteModule):
                 **kwargs):
         
         x_txt = self.bertrep(input_ids_sequences, attn_mask_sequences)
-        lstm_out, _ = self.ftlstm(x_txt, note_time_list)
+        valid_x_txt = x_txt[note_time_mask_list.bool()].unsqueeze(0)
+        valid_note_time_list = note_time_list[note_time_mask_list.bool()].unsqueeze(0)
+        # ipdb.set_trace()
+        lstm_out, _ = self.ftlstm(valid_x_txt, valid_note_time_list)
         last_hs = lstm_out[:, -1, :]
         # last_hs = torch.mean(x_txt, dim=1)
         # MLP for the final prediction
@@ -190,6 +193,8 @@ class FTLSTMModule(MIMIC3NoteModule):
         if self.task == 'ihm':
             if labels != None:
                 ce_loss = self.loss_fct1(output, labels)
+                if torch.isnan(ce_loss):
+                    ipdb.set_trace()
                 return ce_loss
             return F.softmax(output, dim=-1)[:, 1]
 

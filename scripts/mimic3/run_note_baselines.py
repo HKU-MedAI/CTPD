@@ -25,7 +25,7 @@ torch.backends.cudnn.benchmark = True  # type: ignore
 torch.set_float32_matmul_precision("high")
 
 '''
-CUDA_VISIBLE_DEVICES=0 python run_note_baselines.py --task ihm --model_name grud
+CUDA_VISIBLE_DEVICES=6 python run_note_baselines.py --task pheno --model_name grud
 '''
 parser = ArgumentParser(description="PyTorch Lightning EHR Model") 
 parser.add_argument("--task", type=str, default="pheno",
@@ -84,8 +84,8 @@ def cli_main():
             first_nrows=args.first_nrows)
 
         # define model
-        if args.test_only:
-            args.devices = 1
+        # if args.test_only:
+        #     args.devices = 1
 
         if args.model_name == "mtand":
             if args.ckpt_path:

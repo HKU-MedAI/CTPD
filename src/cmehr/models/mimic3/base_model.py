@@ -243,6 +243,8 @@ class MIMIC3NoteModule(MIMIC3LightningModule):
         super().__init__(task, modeltype, max_epochs, ts_learning_rate, period_length, *args, **kwargs)
 
     def training_step(self, batch: Dict, batch_idx: int):
+        if batch is None or batch["input_ids"] is None:
+            return torch.tensor(0.0).type_as(batch["input_ids"])
         loss = self(
             input_ids_sequences=batch["input_ids"],
             attn_mask_sequences=batch["attention_mask"],
@@ -260,6 +262,8 @@ class MIMIC3NoteModule(MIMIC3LightningModule):
         self.validation_step_outputs = []
 
     def validation_step(self, batch: Dict, batch_idx: int) -> STEP_OUTPUT:
+        if batch is None or batch["input_ids"] is None:
+            return
         logits = self(
             input_ids_sequences=batch["input_ids"],
             attn_mask_sequences=batch["attention_mask"],
@@ -276,6 +280,8 @@ class MIMIC3NoteModule(MIMIC3LightningModule):
         self.test_step_outputs = []
 
     def test_step(self, batch: Dict, batch_idx: int) -> STEP_OUTPUT:
+        if batch is None or batch["input_ids"] is None:
+            return
         logits = self(
             input_ids_sequences=batch["input_ids"],
             attn_mask_sequences=batch["attention_mask"],
