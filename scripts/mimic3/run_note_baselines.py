@@ -42,7 +42,7 @@ parser.add_argument("--first_nrows", type=int, default=-1)
 parser.add_argument("--model_name", type=str, default="mtand",
                     choices=["mtand", "grud", "flat", "hiertrans",
                              "tlstm", "ftlstm"])
-parser.add_argument("--ts_learning_rate", type=float, default=4e-4)
+parser.add_argument("--ts_learning_rate", type=float, default=4e-5)
 parser.add_argument("--ckpt_path", type=str,
                     default="")
 parser.add_argument("--test_only", action="store_true")

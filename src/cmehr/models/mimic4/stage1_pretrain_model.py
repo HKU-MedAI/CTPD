@@ -85,6 +85,8 @@ class MIMIC4PretrainModule(LightningModule):
         self.ts_conv1 = nn.Conv1d(self.orig_d_ts, self.embed_dim, kernel_size=1)
         self.img_conv1 = nn.Conv1d(self.embed_dim, self.embed_dim, kernel_size=1)
 
+        # object-centric learning ... 
+        # do we still need pretraing?
         depth = 1
         self.ts_dilated_conv = DilatedConvEncoder(
             in_channels=self.embed_dim, 
@@ -92,6 +94,12 @@ class MIMIC4PretrainModule(LightningModule):
             kernel_size=3
         )
 
+        # step 1: mtand to project different timestamps
+        # step 2: slot attention to learn dense slots between both modalities ... across timestamps
+        # step 3: reconstruction within the latent space ?
+        # step 4: contrastive learning within multiple scales. 
+
+        # Add multiscale prototype ...
         # self.img_dilated_conv = DilatedConvEncoder(
         #     in_channels=self.embed_dim, 
         #     channels=[self.embed_dim] * depth + [self.embed_dim], 

@@ -205,6 +205,23 @@ class FTLSTMModule(MIMIC3NoteModule):
                 return ce_loss
             return torch.sigmoid(output)
 
+    def configure_optimizers(self):
+        optimizer = torch.optim.Adam([
+                {'params': [p for n, p in self.named_parameters()
+                            if 'bert' not in n]},
+                {'params': [p for n, p in self.named_parameters(
+                ) if 'bert' in n], 'lr': self.ts_learning_rate / 10}
+            ], lr=self.ts_learning_rate)
+        lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
+            optimizer, factor=0.4, patience=3, verbose=True, mode='max')
+        scheduler = {
+            'scheduler': lr_scheduler,
+            'monitor': 'val_auroc',
+            'interval': 'epoch',
+            'frequency': 1
+        }
+        return [optimizer], [scheduler]
+    
 
 if __name__ == "__main__":
     from torch.utils.data import DataLoader
