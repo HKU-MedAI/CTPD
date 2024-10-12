@@ -57,11 +57,24 @@ class MIMIC3LightningModule(LightningModule):
             x_ts_mask=batch["ts_mask"],
             ts_tt_list=batch["ts_tt"],
             reg_ts=batch["reg_ts"],
+            input_ids=batch["input_ids"],
+            attention_mask=batch["attention_mask"],
+            note_time=batch["note_time"],
+            note_time_mask=batch["note_time_mask"],
             labels=batch["label"],
         )
         batch_size = batch["ts"].size(0)
-        self.log("train_loss", loss, on_step=True, on_epoch=True,
-                 sync_dist=True, prog_bar=True, batch_size=batch_size)
+
+        if isinstance(loss, Dict):
+            self.log_dict({f"train_{k}": v for k, v in loss.items()},
+                            on_step=True, on_epoch=True, sync_dist=True, prog_bar=True)
+            return loss["total_loss"]
+        elif isinstance(loss, torch.Tensor):
+            self.log("train_loss", loss, on_step=True, on_epoch=True,
+                    sync_dist=True, prog_bar=True, batch_size=batch_size)
+            return loss
+        else:
+            raise NotImplementedError
 
         return loss
 
@@ -73,6 +86,10 @@ class MIMIC3LightningModule(LightningModule):
             x_ts=batch["ts"],  # type ignore
             x_ts_mask=batch["ts_mask"],
             ts_tt_list=batch["ts_tt"],
+            input_ids=batch["input_ids"],
+            attention_mask=batch["attention_mask"],
+            note_time=batch["note_time"],
+            note_time_mask=batch["note_time_mask"],
             reg_ts=batch["reg_ts"],
         )
         return_dict = {
@@ -89,6 +106,10 @@ class MIMIC3LightningModule(LightningModule):
             x_ts=batch["ts"],  # type ignore
             x_ts_mask=batch["ts_mask"],
             ts_tt_list=batch["ts_tt"],
+            input_ids=batch["input_ids"],
+            attention_mask=batch["attention_mask"],
+            note_time=batch["note_time"],
+            note_time_mask=batch["note_time_mask"],
             reg_ts=batch["reg_ts"]
         )
 

@@ -35,6 +35,9 @@ pip install -e .
 - [ ] problem: the feature in temporal dimension is very similar.
 - [ ] TODO: maybe construct a prototype map ...
 - [ ] the files for different models should be refactored ...  / However, this can be done after the ddl.
+- [ ] extend pocmp to mimic3
+- [ ] add decoder for ts 
+- [ ] tune weight of different losses
 
 ### Results
 XXX

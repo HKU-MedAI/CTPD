@@ -48,7 +48,8 @@ def extract_pretrain_embs(model: MIMIC4PretrainModule, dataloader: DataLoader):
         # proj_ts_embs = model.forward_ts_mtand(ts, ts_mask, ts_tt)
         # proj_ts_embs = F.normalize(proj_ts_embs, dim=-1)
         all_name.extend(batch["name"])
-        reg_ts = batch["reg_ts"].to(device)
+        ts_dim = batch["reg_ts"].shape[2]
+        reg_ts = batch["reg_ts"][..., :ts_dim//2].to(device)
         feat_ts = model.ts_conv1(reg_ts.permute(0, 2, 1))
         proj_ts_embs = model.ts_dilated_conv(feat_ts).permute(0, 2, 1)
 
@@ -108,7 +109,8 @@ def extract_downstream_embs(model: MIMIC4PretrainModule, dataloader: DataLoader,
 
         all_name.extend(batch["name"])
 
-        reg_ts = batch["reg_ts"].to(device)
+        ts_dim = batch["reg_ts"].shape[2]
+        reg_ts = batch["reg_ts"][..., :ts_dim//2].to(device)
         feat_ts = model.ts_conv1(reg_ts.permute(0, 2, 1))
         proj_ts_embs = model.ts_dilated_conv(feat_ts).permute(0, 2, 1)
 
@@ -160,7 +162,7 @@ def cli_main():
             mimic_cxr_dir=str(MIMIC_CXR_JPG_PATH),
             file_path=str(
                 DATA_PATH / f"output_mimic4/self_supervised_multimodal"),
-            period_length=args.period_length,
+            period_length=48,
             batch_size=args.batch_size,
             num_workers=args.num_workers,
             first_nrows=args.first_nrows)

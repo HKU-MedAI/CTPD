@@ -22,7 +22,7 @@ class MIMIC4_Dataset(Dataset):
                  img_transform=get_transforms(is_train=False),
                  modeltype: str = "TS_CXR",
                  tt_max: int = 48,
-                 num_imgs: int = 5,
+                 num_imgs: int = 4,
                  first_nrows: Optional[int] = None):
         super().__init__()
 

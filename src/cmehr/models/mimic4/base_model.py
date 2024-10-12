@@ -36,6 +36,8 @@ class MIMIC4LightningModule(MIMIC3LightningModule):
                 cxr_imgs=batch["cxr_imgs"],
                 cxr_time=batch["cxr_time"],
                 cxr_time_mask=batch["cxr_time_mask"],
+                reg_imgs=batch["reg_imgs"],
+                reg_imgs_mask=batch["reg_imgs_mask"],
                 labels=batch["label"],
             )
         elif self.modeltype == "TS":
@@ -57,10 +59,16 @@ class MIMIC4LightningModule(MIMIC3LightningModule):
             raise NotImplementedError
 
         batch_size = batch["ts"].size(0)
-        self.log("train_loss", loss, on_step=True, on_epoch=True,
-                 sync_dist=True, prog_bar=True, batch_size=batch_size)
-
-        return loss
+        if isinstance(loss, Dict):
+            self.log_dict({f"train_{k}": v for k, v in loss.items()},
+                            on_step=True, on_epoch=True, sync_dist=True, prog_bar=True)
+            return loss["total_loss"]
+        elif isinstance(loss, torch.Tensor):
+            self.log("train_loss", loss, on_step=True, on_epoch=True,
+                    sync_dist=True, prog_bar=True, batch_size=batch_size)
+            return loss
+        else:
+            raise NotImplementedError
 
     def on_validation_epoch_start(self) -> None:
         self.validation_step_outputs = []
@@ -75,6 +83,8 @@ class MIMIC4LightningModule(MIMIC3LightningModule):
                 cxr_imgs=batch["cxr_imgs"],
                 cxr_time=batch["cxr_time"],
                 cxr_time_mask=batch["cxr_time_mask"],
+                reg_imgs=batch["reg_imgs"],
+                reg_imgs_mask=batch["reg_imgs_mask"],
             )
         elif self.modeltype == "TS":
             logits = self(
@@ -111,6 +121,8 @@ class MIMIC4LightningModule(MIMIC3LightningModule):
                 cxr_imgs=batch["cxr_imgs"],
                 cxr_time=batch["cxr_time"],
                 cxr_time_mask=batch["cxr_time_mask"],
+                reg_imgs=batch["reg_imgs"],
+                reg_imgs_mask=batch["reg_imgs_mask"],
             )
         elif self.modeltype == "TS":
             logits = self(
@@ -135,23 +147,19 @@ class MIMIC4LightningModule(MIMIC3LightningModule):
         self.test_step_outputs.append(return_dict)
 
     def configure_optimizers(self):
-        if self.modeltype == "TS_CXR":
-            optimizer = torch.optim.Adam([
-                {'params': [p for n, p in self.named_parameters()
-                            if 'img_encoder' not in n]},
-                {'params': [p for n, p in self.named_parameters(
-                ) if 'img_encoder' in n], 'lr': self.img_learning_rate}
-            ], lr=self.ts_learning_rate)
-            return optimizer
-        else:
-            optimizer = torch.optim.Adam(
-                self.parameters(), lr=self.ts_learning_rate)
-            lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
-                optimizer, factor=0.4, patience=3, verbose=True, mode='max')
-            scheduler = {
-                'scheduler': lr_scheduler,
-                'monitor': 'val_auroc',
-                'interval': 'epoch',
-                'frequency': 1
-            }
-            return [optimizer], [scheduler]
+        optimizer = torch.optim.Adam([
+            {'params': [p for n, p in self.named_parameters()
+                        if 'img_encoder' not in n]},
+            {'params': [p for n, p in self.named_parameters(
+            ) if 'img_encoder' in n], 'lr': self.ts_learning_rate / 5}
+        ], lr=self.ts_learning_rate)
+
+        lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
+            optimizer, factor=0.4, patience=3, verbose=True, mode='max')
+        scheduler = {
+            'scheduler': lr_scheduler,
+            'monitor': 'val_auroc',
+            'interval': 'epoch',
+            'frequency': 1
+        }
+        return [optimizer], [scheduler]

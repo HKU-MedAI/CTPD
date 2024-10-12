@@ -15,7 +15,7 @@ from cmehr.dataset.mimic4_downstream_datamodule import MIMIC4DataModule
 from cmehr.models.mimic4 import (
     CNNModule, ProtoTSModel, IPNetModule, GRUDModule, SEFTModule, RNNModule, LSTMModule,
     MTANDModule, DGM2OModule, MedFuseModule, TransformerModule, MILLETModule, OTKModule,
-    CAMELOTModule, TSLANETModule)
+    CAMELOTModule, TSLANETModule, POCMPModule)
 from cmehr.paths import *
 
 
@@ -25,7 +25,11 @@ torch.set_float32_matmul_precision("high")
 
 
 '''
-CUDA_VISIBLE_DEVICES=1 python train_mimic4.py --task ihm --model_name mtand
+CUDA_VISIBLE_DEVICES=0,1,2,3 python train_mimic4.py --task ihm --model_name pocmp --devices 4 --batch_size 12 \
+
+
+CUDA_VISIBLE_DEVICES=0,1,2,3 python train_mimic4.py --task pheno --model_name pocmp --devices 4 --batch_size 12 \
+    --use_prototype --use_multiscale
 '''
 parser = ArgumentParser(description="PyTorch Lightning EHR Model")
 parser.add_argument("--task", type=str, default="pheno",
@@ -42,11 +46,11 @@ parser.add_argument("--first_nrows", type=int, default=-1)
 parser.add_argument("--model_name", type=str, default="cnn",
                     choices=["proto_ts", "ipnet", "grud", "seft", "mtand", "dgm2", "rnn",
                              "medfuse", "cnn", "lstm", "transformer", "millet", "camelot",
-                             "otk", "diffem", "tslanet"])
+                             "otk", "diffem", "tslanet", "pocmp"])
 parser.add_argument("--modeltype", type=str, default="TS_CXR",
                     choices=["TS_CXR", "TS", "CXR"],
                     help="Set the model type to use for training")
-parser.add_argument("--ts_learning_rate", type=float, default=4e-4)
+parser.add_argument("--ts_learning_rate", type=float, default=4e-5)
 parser.add_argument("--ckpt_path", type=str,
                     default="")
 parser.add_argument("--test_only", action="store_true")
@@ -54,6 +58,8 @@ parser.add_argument("--pooling_type", type=str, default="mean",
                     choices=["attention", "mean", "last"])
 parser.add_argument("--use_prototype", action="store_true")
 parser.add_argument("--use_multiscale", action="store_true")
+parser.add_argument("--lamb1", type=float, default=1.)
+parser.add_argument("--lamb2", type=float, default=1.)
 args = parser.parse_args()
 
 
@@ -67,8 +73,6 @@ def cli_main():
         seed_everything(seed)
 
         # This is fixed for MIMIC4
-        # args.orig_d_ts = 25
-        # args.orig_reg_d_ts = 50
         args.orig_d_ts = 15
         args.orig_reg_d_ts = 30
 
@@ -85,7 +89,7 @@ def cli_main():
             mimic_cxr_dir=str(MIMIC_CXR_JPG_PATH),
             # by default, we use this multimodal dataset.
             file_path=str(
-                ROOT_PATH / f"output_mimic4/TS_CXR/{args.task}"),
+                DATA_PATH / f"output_mimic4/TS_CXR/{args.task}"),
             modeltype=args.modeltype,
             period_length=args.period_length,
             batch_size=args.batch_size,
@@ -186,8 +190,16 @@ def cli_main():
                     args.ckpt_path, **vars(args))
             else:
                 model = TSLANETModule(**vars(args))
+        elif args.model_name == "pocmp":
+            if args.ckpt_path:
+                model = POCMPModule.load_from_checkpoint(
+                    args.ckpt_path, **vars(args))
+            else:
+                model = POCMPModule(**vars(args))
         else:
             raise ValueError("Invalid model name")
+
+        model.train_iters_per_epoch = len(dm.train_dataloader()) // (args.accumulate_grad_batches * args.devices)
 
         # initialize trainer
         run_name = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")

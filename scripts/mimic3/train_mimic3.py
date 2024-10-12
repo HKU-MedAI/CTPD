@@ -6,15 +6,17 @@ from argparse import ArgumentParser
 from datetime import datetime
 import pandas as pd
 import ipdb
+import wandb
 
 import torch
 from lightning import Trainer, seed_everything
 from lightning.pytorch.callbacks import LearningRateMonitor, ModelCheckpoint, EarlyStopping
 from lightning.pytorch.loggers import WandbLogger
-from cmehr.dataset import MIMIC4DataModule, MIMIC3DataModule
+from cmehr.dataset import MIMIC3DataModule
 from cmehr.models.mimic4 import (
     CNNModule, ProtoTSModel, IPNetModule, GRUDModule, SEFTModule,
     MTANDModule, DGM2OModule, MedFuseModule, UTDEModule)
+from cmehr.models.mimic3.pocmp_model import POCMPModule
 from cmehr.paths import *
 
 torch.backends.cudnn.deterministic = True  # type: ignore
@@ -35,8 +37,8 @@ parser.add_argument("--accumulate_grad_batches", type=int, default=1)
 parser.add_argument("--first_nrows", type=int, default=-1)
 parser.add_argument("--model_name", type=str, default="medfuse",
                     choices=["proto_ts", "ipnet", "grud", "seft", "mtand", "dgm2",
-                             "medfuse", "cnn", "utde"])
-parser.add_argument("--ts_learning_rate", type=float, default=4e-4)
+                             "medfuse", "cnn", "utde", "pocmp"])
+parser.add_argument("--ts_learning_rate", type=float, default=4e-5)
 parser.add_argument("--ckpt_path", type=str,
                     default="")
 parser.add_argument("--test_only", action="store_true")
@@ -44,6 +46,10 @@ parser.add_argument("--pooling_type", type=str, default="mean",
                     choices=["attention", "mean", "last"])
 parser.add_argument("--use_prototype", action="store_true")
 parser.add_argument("--use_multiscale", action="store_true")
+parser.add_argument("--lamb1", type=float, default=0.5)
+parser.add_argument("--lamb2", type=float, default=0)
+parser.add_argument("--lamb3", type=float, default=0)
+parser.add_argument("--num_slots", type=int, default=16)
 args = parser.parse_args()
 
 '''
@@ -79,7 +85,7 @@ def cli_main():
                 DATA_PATH / f"output_mimic3/{args.task}"),
             tt_max=args.period_length,
             batch_size=args.batch_size,
-            modeltype="TS",
+            modeltype="TS_Text",
             num_workers=args.num_workers,
             first_nrows=args.first_nrows)
 
@@ -141,17 +147,25 @@ def cli_main():
                     args.ckpt_path, **vars(args))
             else:
                 model = UTDEModule(**vars(args))
+        elif args.model_name == "pocmp":
+            if args.ckpt_path:
+                model = POCMPModule.load_from_checkpoint(
+                    args.ckpt_path, **vars(args))
+            else:
+                model = POCMPModule(**vars(args))
         else:
             raise ValueError("Invalid model name")
 
+        model.train_iters_per_epoch = len(dm.train_dataloader()) // (args.accumulate_grad_batches * args.devices)
+
         # initialize trainer
         run_name = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-        run_name = f"mimic_{args.task}_{args.model_name}_{run_name}"
+        run_name = f"mimic3_{args.task}_{args.model_name}_{run_name}"
         os.makedirs(ROOT_PATH / "log/ckpts", exist_ok=True)
         logger = WandbLogger(
             name=run_name,
             save_dir=str(ROOT_PATH / "log"),
-            project="cm-ehr", log_model=False)
+            project="pocmp", log_model=False)
         if args.task == "ihm":
             callbacks = [
                 LearningRateMonitor(logging_interval="step"),
@@ -186,6 +200,7 @@ def cli_main():
             callbacks=callbacks,
             logger=logger,
             strategy="ddp_find_unused_parameters_true",
+            gradient_clip_val=0.5,
         )
 
         if not args.test_only:
@@ -197,6 +212,8 @@ def cli_main():
         all_auroc.append(model.report_auroc)
         all_auprc.append(model.report_auprc)
         all_f1.append(model.report_f1)
+
+        wandb.finish()
 
     report_df = pd.DataFrame({
         "auroc": all_auroc,
