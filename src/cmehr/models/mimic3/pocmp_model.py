@@ -480,16 +480,16 @@ class POCMPModule(MIMIC3LightningModule):
             num_ts_tokens = concat_ts_feat.size(1)
         
         # num_text_tokens = concat_text_slot.size(1) + concat_text_feat.size(1)
-        # last_ts_feat = torch.mean(fusion_feat[:, :num_ts_tokens, :], dim=1)
-        # last_text_feat = torch.mean(fusion_feat[:, num_ts_tokens:, :], dim=1)
-        ts_pred_tokens = fusion_feat[:, :num_ts_tokens, :]
-        attn, ts_pred_tokens = self.ts_atten_pooling(ts_pred_tokens)
-        attn = F.softmax(attn, dim=1)
-        last_ts_feat = torch.bmm(attn.permute(0, 2, 1), ts_pred_tokens).squeeze(dim=1)
-        text_pred_tokens = fusion_feat[:, num_ts_tokens:, :]
-        attn, text_pred_tokens = self.text_atten_pooling(text_pred_tokens)
-        attn = F.softmax(attn, dim=1)
-        last_text_feat = torch.bmm(attn.permute(0, 2, 1), text_pred_tokens).squeeze(dim=1)
+        last_ts_feat = torch.mean(fusion_feat[:, :num_ts_tokens, :], dim=1)
+        last_text_feat = torch.mean(fusion_feat[:, num_ts_tokens:, :], dim=1)
+        # ts_pred_tokens = fusion_feat[:, :num_ts_tokens, :]
+        # attn, ts_pred_tokens = self.ts_atten_pooling(ts_pred_tokens)
+        # attn = F.softmax(attn, dim=1)
+        # last_ts_feat = torch.bmm(attn.permute(0, 2, 1), ts_pred_tokens).squeeze(dim=1)
+        # text_pred_tokens = fusion_feat[:, num_ts_tokens:, :]
+        # attn, text_pred_tokens = self.text_atten_pooling(text_pred_tokens)
+        # attn = F.softmax(attn, dim=1)
+        # last_text_feat = torch.bmm(attn.permute(0, 2, 1), text_pred_tokens).squeeze(dim=1)
         last_hs = torch.cat([last_ts_feat, last_text_feat], dim=1)
 
         output = self.out_layer(last_hs)

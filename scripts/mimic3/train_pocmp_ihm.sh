@@ -7,7 +7,11 @@ CUDA_VISIBLE_DEVICES=3 python train_mimic3.py --task ihm --model_name pocmp --de
 CUDA_VISIBLE_DEVICES=3 python train_mimic3.py --task ihm --model_name pocmp --devices 1 \
     --use_multiscale --use_prototype --lamb1 0.1 --lamb2 0.1 --lamb3 0.1 
 CUDA_VISIBLE_DEVICES=3 python train_mimic3.py --task ihm --model_name pocmp --devices 1 \
-    --use_multiscale --use_prototype --lamb1 0.1 --lamb2 0.5 --lamb3 0.5 
+    --use_multiscale --lamb1 0.1 --lamb2 0.5 --lamb3 0.5 
+
+CUDA_VISIBLE_DEVICES=6 python train_mimic3.py --task ihm --model_name pocmp --devices 1 \
+    --use_prototype --lamb1 0.1 --lamb2 0.5 --lamb3 0.5 
+
 # CUDA_VISIBLE_DEVICES=3 python train_mimic3.py --task ihm --model_name pocmp --devices 1 \
 #     --use_multiscale --use_prototype --lamb1 0.5 --lamb2 0.5 --lamb3 0.5 
 # CUDA_VISIBLE_DEVICES=3 python train_mimic3.py --task ihm --model_name pocmp --devices 1 \
