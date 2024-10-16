@@ -19,7 +19,7 @@ torch.set_float32_matmul_precision("high")
 
 '''
 CUDA_VISIBLE_DEVICES=2 python evaluate_mimic3.py --task pheno \
-    --ckpt_path /home/fywang/Documents/MMMSPG/log/ckpts/mimic3_pheno_pocmp_2024-10-09_05-54-19/epoch=41-step=8358.ckpt
+    --ckpt_path /home/*/Documents/MMMSPG/log/ckpts/mimic3_pheno_pocmp_2024-10-09_05-54-19/epoch=41-step=8358.ckpt
 '''
 parser = ArgumentParser()
 parser.add_argument("--task", type=str, default="ihm")
@@ -29,7 +29,7 @@ parser.add_argument("--batch_size", type=int, default=128)
 parser.add_argument("--num_workers", type=int, default=4)
 parser.add_argument("--first_nrows", type=int, default=None)
 parser.add_argument("--ckpt_path", type=str, 
-                    default="/home/fywang/Documents/MMMSPG/log/ckpts/mimic3_pheno_pocmp_2024-10-09_05-54-19/epoch=37-step=7562.ckpt")
+                    default="/home/*/Documents/MMMSPG/log/ckpts/mimic3_pheno_pocmp_2024-10-09_05-54-19/epoch=37-step=7562.ckpt")
 args = parser.parse_args()
 
 

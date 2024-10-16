@@ -111,7 +111,7 @@ def preprocess_mimic(text):
 
 
 # df = pd.read_csv('/mnt/disks/mimic3/data/data/NOTEEVENTS.csv')
-df = pd.read_csv("/disk1/fywang/EHR_dataset/mimiciii/NOTEEVENTS.csv")
+df = pd.read_csv("/disk1/*/EHR_dataset/mimiciii/NOTEEVENTS.csv")
 df.CHARTDATE = pd.to_datetime(df.CHARTDATE)
 df.CHARTTIME = pd.to_datetime(df.CHARTTIME)
 df.STORETIME = pd.to_datetime(df.STORETIME)
@@ -154,11 +154,11 @@ min        1.000000      1.000000      1.000000
 max     1214.000000   1214.000000   1214.000000
 '''
 
-dataset_path = "/disk1/fywang/EHR_dataset/mimiciii_benchmark/train"
+dataset_path = "/disk1/*/EHR_dataset/mimiciii_benchmark/train"
 all_files = os.listdir(dataset_path)
 all_folders = list(filter(lambda x: x.isdigit(), all_files))
 
-output_folder = "/disk1/fywang/EHR_dataset/mimiciii_benchmark/train_text_fixed"
+output_folder = "/disk1/*/EHR_dataset/mimiciii_benchmark/train_text_fixed"
 
 suceed = 0
 failed = 0

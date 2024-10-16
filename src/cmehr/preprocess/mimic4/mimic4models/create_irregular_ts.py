@@ -37,7 +37,7 @@ parser.add_argument('--dataset_dir', type=str, default="../data")
 parser.add_argument('--modality_type', nargs="+", default=["TS", "CXR"],
                     help="Three modalities in the dataset: time series, text, and CXR")
 parser.add_argument('--cxr_csv_path', type=str, 
-                    default="/home/fywang/Documents/EHR_codebase/MMMSPG/data/mimiciv_fairness_benchmark/cxr/admission_w_cxr.csv")
+                    default="/home/*/Documents/EHR_codebase/MMMSPG/data/mimiciv_fairness_benchmark/cxr/admission_w_cxr.csv")
 args = parser.parse_args()
 
 

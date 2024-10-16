@@ -10,9 +10,9 @@ import ipdb
 random.seed(49297)
 
 '''
-python -m mimic4benchmark.scripts.create_multimodal_mimic4 --root_path /disk1/fywang/EHR_dataset/mimiciv_fairness_benchmark \
-    --output_path /disk1/fywang/EHR_dataset/mimiciv_fairness_benchmark/cxr  \
-    --cxr_path /disk1/fywang/EHR_dataset/mimiciv_benchmark/cxr/admission_w_cxr.csv
+python -m mimic4benchmark.scripts.create_multimodal_mimic4 --root_path /disk1/*/EHR_dataset/mimiciv_fairness_benchmark \
+    --output_path /disk1/*/EHR_dataset/mimiciv_fairness_benchmark/cxr  \
+    --cxr_path /disk1/*/EHR_dataset/mimiciv_benchmark/cxr/admission_w_cxr.csv
 '''
 
 parser = argparse.ArgumentParser(description='Create multimodal pairs from MIMIC-IV dataset.')

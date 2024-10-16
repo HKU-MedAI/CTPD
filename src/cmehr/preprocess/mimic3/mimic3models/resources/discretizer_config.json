@@ -28,7 +28,7 @@
     "Glascow coma scale verbal response": true,
     "Glucose": false,
     "Heart Rate": false,
-    "Height": false,
+    "Height": false,  
     "Mean blood pressure": false,
     "Oxygen saturation": false,
     "Respiratory rate": false,

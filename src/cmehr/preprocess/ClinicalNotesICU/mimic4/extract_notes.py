@@ -9,7 +9,7 @@ import ipdb
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--note_csv', type=str,
-                    default='/disk1/fywang/EHR_dataset/mimiciv/note/discharge.csv.gz')
+                    default='/disk1/*/EHR_dataset/mimiciv/note/discharge.csv.gz')
 args = parser.parse_args()
 
 """
@@ -154,10 +154,10 @@ max           1.0        1.0       1.0
 '''
 
 admission_df = pd.read_csv(
-    "/disk1/fywang/EHR_dataset/mimiciv/hosp/admissions.csv"
+    "/disk1/*/EHR_dataset/mimiciv/hosp/admissions.csv"
 )
 
-mimic_iv_benchmark_path = "/disk1/fywang/EHR_dataset/mimiciv_benchmark"
+mimic_iv_benchmark_path = "/disk1/*/EHR_dataset/mimiciv_benchmark"
 split = "train"
 all_files = os.listdir(os.path.join(mimic_iv_benchmark_path, split))
 all_folders = list(filter(lambda x: x.isdigit(), all_files))

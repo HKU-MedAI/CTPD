@@ -14,8 +14,8 @@ from cmehr.preprocess.mimic4.mimic4models.preprocessing import Discretizer
 from cmehr.paths import *
 
 '''
-python -m mimic4models.create_irregular_multimodal --dataset_path /disk1/fywang/EHR_dataset/mimiciv_benchmark/cxr \
-    --cxr_path /disk1/fywang/EHR_dataset/mimiciv_benchmark/cxr/admission_w_cxr.csv
+python -m mimic4models.create_irregular_multimodal --dataset_path /disk1/*/EHR_dataset/mimiciv_benchmark/cxr \
+    --cxr_path /disk1/*/EHR_dataset/mimiciv_benchmark/cxr/admission_w_cxr.csv
 '''
 parser = argparse.ArgumentParser(
     description='Create irregular time series from MIMIC 4')
@@ -27,7 +27,7 @@ parser.add_argument('--imputation', type=str, default='previous')
 parser.add_argument('--small_part', dest='small_part', action='store_true')
 parser.add_argument('--dataset_path', type=str, default="mimic4")
 parser.add_argument('--cxr_path', type=str, 
-                    default="/home/fywang/Documents/EHR_codebase/MMMSPG/data/mimiciv_fairness_benchmark/cxr/admission_w_cxr.csv")
+                    default="/home/*/Documents/EHR_codebase/MMMSPG/data/mimiciv_fairness_benchmark/cxr/admission_w_cxr.csv")
 args = parser.parse_args()
 
 

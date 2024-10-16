@@ -10,7 +10,7 @@ CUDA_VISIBLE_DEVICES=3,4 python pretrain_mimic4.py --devices 2
 
 ```bash
 CUDA_VISIBLE_DEVICES=3 python extract_pretrained_embs.py \
-    --ckpt_path /home/fywang/Documents/MMMSPG/log/ckpts/mimic4_pretrain_2024-09-23_16-24-57/epoch=66-step=13802.ckpt
+    --ckpt_path /home/*/Documents/MMMSPG/log/ckpts/mimic4_pretrain_2024-09-23_16-24-57/epoch=66-step=13802.ckpt
 ```
 Here `ckpt_path` is the path of pretrained checkpoint in step 1.
 
@@ -27,11 +27,11 @@ CUDA_VISIBLE_DEVICES=2,4 python create_prototypes.py --n_proto 32
 It seems that svm achieves the best evaluation performance.
 ```bash
 CUDA_VISIBLE_DEVICES=2 python embedding_mimic4.py --eval_method svm \
---ts_proto_path /home/fywang/Documents/MMMSPG/prototype_results/mimic4_pretrain/ts_proto_32.pkl \
---cxr_proto_path /home/fywang/Documents/MMMSPG/prototype_results/mimic4_pretrain/cxr_proto_32.pkl
+--ts_proto_path /home/*/Documents/MMMSPG/prototype_results/mimic4_pretrain/ts_proto_32.pkl \
+--cxr_proto_path /home/*/Documents/MMMSPG/prototype_results/mimic4_pretrain/cxr_proto_32.pkl
 
 CUDA_VISIBLE_DEVICES=0 python embedding_mimic4.py --eval_method linear \
---ts_proto_path /home/fywang/Documents/MMMSPG/prototype_results/mimic4_pretrain/mm_proto_32.pkl
+--ts_proto_path /home/*/Documents/MMMSPG/prototype_results/mimic4_pretrain/mm_proto_32.pkl
 ```
 
 5. Multimodal fusion 

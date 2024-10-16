@@ -297,7 +297,7 @@ class DGM2OModule(MIMIC4LightningModule):
         self.pred_layer = nn.Linear(10 + static, self.num_labels)
 
         import json
-        with open("/home/fywang/Documents/MMMSPG/src/cmehr/preprocess/mimic3/mimic3models/resources/discretizer_config.json", "r") as f:
+        with open("/home/*/Documents/MMMSPG/src/cmehr/preprocess/mimic3/mimic3models/resources/discretizer_config.json", "r") as f:
             config = json.load(f)
         variables = config["id_to_channel"]
         static_variables = ["Height", "Weight"]

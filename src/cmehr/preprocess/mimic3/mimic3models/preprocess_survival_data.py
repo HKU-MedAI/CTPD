@@ -18,7 +18,7 @@ from cmehr.preprocess.mimic3.mimic3models.preprocessing import Discretizer
 from cmehr.paths import *
 
 '''
-python -m mimic3models.preprocess_survival_data --task survival_prediction --dataset_dir /disk1/fywang/EHR_dataset/mimiciii_benchmark
+python -m mimic3models.preprocess_survival_data --task survival_prediction --dataset_dir /disk1/*/EHR_dataset/mimiciii_benchmark
 '''
 
 parser = argparse.ArgumentParser(

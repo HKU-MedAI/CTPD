@@ -9,11 +9,11 @@ parser = argparse.ArgumentParser()
 # parser.add_argument('--task', type=str, default='ihm',
 #                     choices=["ihm", "pheno"])
 parser.add_argument('--mimic_cxr_path', type=str,
-                    default='/disk1/fywang/CXR_dataset/mimic_data/2.0.0')
+                    default='/disk1/*/CXR_dataset/mimic_data/2.0.0')
 parser.add_argument('--mimic_iv_admission_csv', type=str,
-                    default="/disk1/fywang/EHR_dataset/mimiciv_benchmark/all_stays.csv")
+                    default="/disk1/*/EHR_dataset/mimiciv_benchmark/all_stays.csv")
 parser.add_argument('--save_dir', type=str,
-                    default="/disk1/fywang/EHR_dataset/mimiciv_benchmark/cxr")
+                    default="/disk1/*/EHR_dataset/mimiciv_benchmark/cxr")
 args = parser.parse_args()
 
 os.makedirs(args.save_dir, exist_ok=True)

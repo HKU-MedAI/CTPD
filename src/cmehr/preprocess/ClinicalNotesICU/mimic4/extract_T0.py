@@ -4,7 +4,7 @@ import numpy as np
 import pickle
 
 # TODO: fix this path later
-mimic_iv_benchmark_path = "/disk1/fywang/EHR_dataset/mimiciv_benchmark"
+mimic_iv_benchmark_path = "/disk1/*/EHR_dataset/mimiciv_benchmark"
 split = "train"
 test_starttime_path = os.path.join(mimic_iv_benchmark_path, split, f"{split}_starttime.pkl")
 episodeToStartTimeMapping = {}

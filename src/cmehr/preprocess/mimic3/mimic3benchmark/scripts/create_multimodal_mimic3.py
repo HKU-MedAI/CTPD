@@ -12,8 +12,8 @@ from cmehr.paths import *
 random.seed(49297)
 
 '''
-python -m mimic4benchmark.scripts.create_multimodal_mimic3 --root_path /disk1/fywang/EHR_dataset/mimiciii_benchmark \
-    --output_path /disk1/fywang/EHR_dataset/mimiciii_benchmark/multimodal
+python -m mimic4benchmark.scripts.create_multimodal_mimic3 --root_path /disk1/*/EHR_dataset/mimiciii_benchmark \
+    --output_path /disk1/*/EHR_dataset/mimiciii_benchmark/multimodal
 '''
 
 parser = argparse.ArgumentParser(description='Create multimodal pairs from MIMIC-III dataset.')

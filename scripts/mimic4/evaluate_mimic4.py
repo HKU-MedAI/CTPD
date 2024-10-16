@@ -26,7 +26,7 @@ parser.add_argument("--batch_size", type=int, default=16)
 parser.add_argument("--num_workers", type=int, default=4)
 parser.add_argument("--first_nrows", type=int, default=None)
 parser.add_argument("--ckpt_path", type=str, 
-                    default="/home/fywang/Documents/MMMSPG/log/ckpts/mimic4_ihm_pocmp_2024-10-02_23-12-01/epoch=46-step=4230.ckpt")
+                    default="/home/*/Documents/MMMSPG/log/ckpts/mimic4_ihm_pocmp_2024-10-02_23-12-01/epoch=46-step=4230.ckpt")
 args = parser.parse_args()
 
 
