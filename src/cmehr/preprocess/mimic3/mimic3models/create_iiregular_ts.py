@@ -11,7 +11,7 @@ from pathlib import Path
 import numpy as np
 import statistics as stat
 
-from cmehr.preprocess.mimic3.mimic3models.readers import (InHospitalMortalityReader, PhenotypingReader, Reader)
+from cmehr.preprocess.mimic3.mimic3models.readers import (InHospitalMortalityReader, PhenotypingReader, ReadmissionReader, Reader)
 import cmehr.preprocess.mimic3.mimic3models.common_utils as common_utils
 from cmehr.preprocess.mimic3.mimic3models.preprocessing import Discretizer
 from cmehr.preprocess.mimic3.mimic3models.text_utils import TextReader, merge_text_ts
@@ -397,6 +397,22 @@ def create_irregular_ts():
             columns=variables
         )
         test_reader = PhenotypingReader(
+            dataset_dir=args.dataset_dir / "test",
+            listfile=args.dataset_dir / "test_listfile.csv",
+            columns=variables
+        )
+    elif args.task == "readm":
+        train_reader = ReadmissionReader(
+            dataset_dir=args.dataset_dir / "train",
+            listfile=args.dataset_dir / "train_listfile.csv",
+            columns=variables
+        )
+        val_reader = ReadmissionReader(
+            dataset_dir=args.dataset_dir / "train",
+            listfile=args.dataset_dir / "val_listfile.csv",
+            columns=variables
+        )
+        test_reader = ReadmissionReader(
             dataset_dir=args.dataset_dir / "test",
             listfile=args.dataset_dir / "test_listfile.csv",
             columns=variables

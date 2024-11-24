@@ -19,70 +19,8 @@ from cmehr.models.mimic4.mtand_model import Attn_Net_Gated
 from cmehr.utils.lr_scheduler import linear_warmup_decay
 from cmehr.models.common.dilated_conv import DilatedConvEncoder, ConvBlock
 from cmehr.models.mimic4.position_encode import PositionalEncoding1D
+from cmehr.models.mimic3.pocmp_model import SlotAttention
 
-
-class SlotAttention(nn.Module):
-    '''
-    Implementation of original slot attention.
-    '''
-
-    def __init__(self, num_slots, dim, iters=3, eps=1e-8, hidden_dim=128):
-        super().__init__()
-        self.num_slots = num_slots
-        self.iters = iters
-        self.eps = eps
-        self.scale = dim ** -0.5
-
-        self.slots_mu = nn.Parameter(torch.randn(1, 1, dim))
-        self.slots_sigma = nn.Parameter(torch.rand(1, 1, dim))
-
-        self.to_q = nn.Linear(dim, dim)
-        self.to_k = nn.Linear(dim, dim)
-        self.to_v = nn.Linear(dim, dim)
-
-        self.gru = nn.GRUCell(dim, dim)
-
-        hidden_dim = max(dim, hidden_dim)
-
-        self.fc1 = nn.Linear(dim, hidden_dim)
-        self.fc2 = nn.Linear(hidden_dim, dim)
-
-        self.norm_input = nn.LayerNorm(dim)
-        self.norm_slots = nn.LayerNorm(dim)
-        self.norm_pre_ff = nn.LayerNorm(dim)
-
-    def forward(self, inputs, num_slots=None):
-        b, n, d = inputs.shape
-        n_s = num_slots if num_slots is not None else self.num_slots
-        mu = self.slots_mu.expand(b, n_s, -1)
-        sigma = self.slots_sigma.expand(b, n_s, -1)
-        slots = torch.normal(mu, sigma)
-
-        inputs = self.norm_input(inputs)
-        k, v = self.to_k(inputs), self.to_v(inputs)
-
-        for _ in range(self.iters):
-            slots_prev = slots
-
-            slots = self.norm_slots(slots)
-            q = self.to_q(slots)
-
-            dots = torch.einsum('bid,bjd->bij', q, k) * self.scale
-            attn = dots.softmax(dim=1) + self.eps
-            attn = attn / attn.sum(dim=-1, keepdim=True)
-
-            updates = torch.einsum('bjd,bij->bid', v, attn)
-
-            slots = self.gru(
-                updates.reshape(-1, d),
-                slots_prev.reshape(-1, d)
-            )
-
-            slots = slots.reshape(b, -1, d)
-            slots = slots + self.fc2(F.relu(self.fc1(self.norm_pre_ff(slots))))
-
-        return slots, attn
-    
 
 class POCMPModule(MIMIC4LightningModule):
     '''
@@ -98,9 +36,11 @@ class POCMPModule(MIMIC4LightningModule):
                  embed_time: int = 64,
                  embed_dim: int = 128,
                  num_imgs: int = 4,
+                 num_slots: int = 20,
                  period_length: float = 48,
                  lamb1: float = 1.,
-                 lamb2: float = 2.,
+                 lamb2: float = 1.,
+                 lamb3: float = 1.,
                  use_prototype: bool = True,
                  use_multiscale: bool = True,
                  TS_mixup: bool = True,
@@ -131,6 +71,7 @@ class POCMPModule(MIMIC4LightningModule):
         # self.tt_max = period_length
         self.lamb1 = lamb1
         self.lamb2 = lamb2
+        self.lamb3 = lamb3
         self.warmup_epochs = warmup_epochs
         self.use_prototype = use_prototype
         self.use_multiscale = use_multiscale
@@ -174,8 +115,7 @@ class POCMPModule(MIMIC4LightningModule):
 
         self.periodic = nn.Linear(1, embed_time-1)
         self.linear = nn.Linear(1, 1)
-        self.time_query_ts = torch.linspace(0, 1., self.tt_max)
-        self.time_query_img = torch.linspace(0, 1., self.num_imgs)
+        self.time_query = torch.linspace(0, 1., self.tt_max)
         self.time_attn_ts = multiTimeAttention(
             self.orig_d_ts*2, self.embed_dim, embed_time, 8)
         self.time_attn_img = multiTimeAttention(
@@ -188,8 +128,8 @@ class POCMPModule(MIMIC4LightningModule):
             if self.mixup_level == 'batch':
                 self.moe_ts = gateMLP(
                     input_dim=self.embed_dim*2, hidden_size=embed_dim, output_dim=1, dropout=dropout)
-                self.moe_img = gateMLP(
-                    input_dim=self.embed_dim*2, hidden_size=embed_dim, output_dim=1, dropout=dropout)
+                # self.moe_img = gateMLP(
+                #     input_dim=self.embed_dim*2, hidden_size=embed_dim, output_dim=1, dropout=dropout)
             # elif self.mixup_level == 'batch_seq':
             #     self.moe = gateMLP(
             #         input_dim=self.embed_dim*2, hidden_size=embed_dim, output_dim=1, dropout=dropout)
@@ -200,21 +140,39 @@ class POCMPModule(MIMIC4LightningModule):
                 raise ValueError("Unknown mixedup type")
 
         self.proj_reg_ts = nn.Conv1d(orig_reg_d_ts, self.embed_dim, kernel_size=1, padding=0, bias=False)
-        self.proj_reg_img = nn.Conv1d(self.embed_dim, self.embed_dim, kernel_size=1, padding=0, bias=False)
+        # self.proj_reg_img = nn.Conv1d(self.embed_dim, self.embed_dim, kernel_size=1, padding=0, bias=False)
 
         if self.use_prototype:
             self.pe = PositionalEncoding1D(embed_dim)
-            if self.use_multiscale:
-                num_prototypes = [20, 10, 5]
-            else:
-                num_prototypes = [10]
-            self.ts_grouping = []
-            for i, num_prototype in enumerate(num_prototypes):
-                self.ts_grouping.append(SlotAttention(
-                    dim=embed_dim, num_slots=num_prototype))
-            self.ts_grouping = nn.ModuleList(self.ts_grouping)
-            self.img_grouping = SlotAttention(
-                dim=embed_dim, num_slots=10)
+
+            # define shared slots
+            self.num_slots = num_slots
+            self.shared_slots_mu = nn.Parameter(torch.randn(1, 1, self.embed_dim))
+            self.shared_slots_logsigma = nn.Parameter(torch.zeros(1, 1, self.embed_dim))
+            nn.init.xavier_uniform_(self.shared_slots_logsigma)
+
+            # if self.use_multiscale:
+            #     num_prototypes = [20, 10, 5]
+            # else:
+            #     num_prototypes = [10]
+            # self.ts_grouping = []
+            # for i, num_prototype in enumerate(num_prototypes):
+            #     self.ts_grouping.append(SlotAttention(
+            #         dim=embed_dim, num_slots=num_prototype))
+            # self.ts_grouping = nn.ModuleList(self.ts_grouping)
+            # self.img_grouping = SlotAttention(
+            #     dim=embed_dim, num_slots=10)
+
+            # define slot attention modules to discover correspondence
+            self.ts_grouping = SlotAttention(dim=embed_dim)
+            self.text_grouping = SlotAttention(dim=embed_dim)
+
+            # gating mechanism
+            self.weight_proj = nn.Sequential(
+                nn.Linear(int(self.embed_dim * 2), self.num_slots),
+                nn.ReLU(inplace=True),
+                nn.Linear(self.num_slots, self.num_slots)
+            )
 
         encoder_layer = nn.TransformerEncoderLayer(d_model=128, nhead=4)
         self.fusion_layer = nn.TransformerEncoder(encoder_layer, num_layers=2)
@@ -222,7 +180,12 @@ class POCMPModule(MIMIC4LightningModule):
             L=embed_dim, D=64, dropout=True, n_classes=1)
         self.img_atten_pooling = Attn_Net_Gated(
             L=embed_dim, D=64, dropout=True, n_classes=1)
-        
+
+        decoder_layer = nn.TransformerDecoderLayer(d_model=self.embed_dim, nhead=8, batch_first=True)
+        self.ts_decoder = nn.TransformerDecoder(decoder_layer, num_layers=2)
+        self.img_decoder = nn.TransformerDecoder(decoder_layer, num_layers=2)
+        self.ts_proj = nn.Linear(self.embed_dim, self.orig_reg_d_ts)
+
         # because the input is a concatenation
         # self.proj1 = nn.Linear(2 * self.embed_dim, self.embed_dim)
         # self.proj2 = nn.Linear(self.embed_dim, self.embed_dim)
@@ -251,7 +214,7 @@ class POCMPModule(MIMIC4LightningModule):
         time_key_ts = self.learn_time_embedding(
             ts_tt_list)
         time_query = self.learn_time_embedding(
-            self.time_query_ts.unsqueeze(0).type_as(x_ts))
+            self.time_query.unsqueeze(0).type_as(x_ts))
         # query: (1, N_r, embed_time),
         # key: (B, N, embed_time),
         # value: (B, N, 2 * D_t)
@@ -332,7 +295,7 @@ class POCMPModule(MIMIC4LightningModule):
         time_key_img = self.learn_time_embedding(
             cxr_time)
         time_query = self.learn_time_embedding(
-            self.time_query_img.unsqueeze(0).type_as(x_img))
+            self.time_query.unsqueeze(0).type_as(x_img))
         mask_img = cxr_time_mask.unsqueeze(-1).expand(-1, -1, self.embed_dim)
         proj_x_img_irg = self.time_attn_img(
             time_query, time_key_img, x_img, mask_img)
@@ -340,16 +303,16 @@ class POCMPModule(MIMIC4LightningModule):
 
         return proj_x_img_irg
 
-    def forward_ts_reg(self, reg_ts: torch.Tensor):
-        '''
-        Forward regular time series.
-        '''
-        # convolution over regular time series
-        x_ts_reg = reg_ts.transpose(1, 2)
-        proj_x_ts_reg = self.proj_reg_ts(x_ts_reg)
-        proj_x_ts_reg = proj_x_ts_reg.permute(2, 0, 1)
+    # def forward_ts_reg(self, reg_ts: torch.Tensor):
+    #     '''
+    #     Forward regular time series.
+    #     '''
+    #     # convolution over regular time series
+    #     x_ts_reg = reg_ts.transpose(1, 2)
+    #     proj_x_ts_reg = self.proj_reg_ts(x_ts_reg)
+    #     proj_x_ts_reg = proj_x_ts_reg.permute(2, 0, 1)
 
-        return proj_x_ts_reg
+    #     return proj_x_ts_reg
     
     # def forward_img_reg(self, reg_imgs: torch.Tensor, reg_imgs_mask: torch.Tensor):
     #     batch_size = reg_imgs.size(0)
@@ -363,15 +326,13 @@ class POCMPModule(MIMIC4LightningModule):
 
     #     return proj_x_img_reg
 
-    def infonce_loss(self, out_1, out_2, temperature=0.07):
+    def infonce_loss(self, sim, temperature=0.07):
         """
         Compute the InfoNCE loss for the given outputs.
         """
-        out_1 = F.normalize(out_1, dim=-1)
-        out_2 = F.normalize(out_2, dim=-1)
-        sim = torch.matmul(out_1, out_2.transpose(0, 1))
         sim /= temperature
         labels = torch.arange(sim.size(0)).type_as(sim).long()
+
         return F.cross_entropy(sim, labels)
 
     def forward(self, x_ts, x_ts_mask, ts_tt_list,
@@ -405,120 +366,112 @@ class POCMPModule(MIMIC4LightningModule):
         ts_slot_list = []
         ts_feat_list = []
         # STEP 3: prototype-based learning
+        ts_feat_list = []
         if not self.use_multiscale:
             # if we don't use multiscale, we only use the first layer
             ts_feat = ts_emb_1
-            if self.use_prototype:
-                ts_feat = rearrange(ts_feat, "b d tt -> b tt d")
-                pe = self.pe(ts_feat)
-                ts_pe = ts_feat + pe
-                updates, attn = self.ts_grouping[0](ts_pe)
-                slot_loss += torch.mean(attn)
-                # last_ts_feat = torch.cat([updates, ts_feat], dim=1)
-                ts_slot_list.append(updates)
-                ts_feat_list.append(ts_feat)
-            else:
-                last_ts_feat = rearrange(ts_feat, "b d tt -> b tt d")
-                ts_feat_list.append(last_ts_feat)
+            ts_feat = rearrange(ts_feat, "b d tt -> b tt d")
+            ts_feat_list.append(ts_feat)
         else:
-            # multi_scale_feats = []
-            if self.use_prototype:
-                for idx, ts_feat in enumerate([ts_emb_1, ts_emb_2, ts_emb_3]):
-                    # extract the feature in each window
-                    ts_feat = rearrange(ts_feat, "b d tt -> b tt d")
-                    # position embedding
-                    pe = self.pe(ts_feat)
-                    ts_pe = ts_feat + pe
-                    updates, attn = self.ts_grouping[idx](ts_pe)
-                    slot_loss += torch.mean(attn)
-                    # multi_scale_feats.append(updates)
-                    # multi_scale_feats.append(ts_feat)
-                    ts_slot_list.append(updates)
-                    ts_feat_list.append(ts_feat)
-
-                slot_loss /= len(ts_slot_list)
-                # last_ts_feat = torch.cat(multi_scale_feats, dim=1)
-            else:
-                for idx, ts_feat in enumerate([ts_emb_1, ts_emb_2, ts_emb_3]):
-                    # multi_scale_feats.append(
-                    #     rearrange(ts_feat, "b d tt -> b tt d"))
-                    ts_feat_list.append(rearrange(ts_feat, "b d tt -> b tt d"))
+            for idx, ts_feat in enumerate([ts_emb_1, ts_emb_2, ts_emb_3]):
+                # extract the feature in each window
+                ts_feat = rearrange(ts_feat, "b d tt -> b tt d")
+                ts_feat_list.append(ts_feat)
 
         # STEP 4: extract prototype features from images 
         # Only consider one scale for image.
         img_emb = self.img_conv_1(proj_x_img)
         img_feat = rearrange(img_emb, "b d tt -> b tt d")
-        img_slot_list = []
         img_feat_list = []
-        if self.use_prototype:
-            pe = self.pe(img_feat)
-            img_pe = img_feat + pe
-            updates, attn = self.img_grouping(img_pe)
-            slot_loss += torch.mean(attn)
-            # last_img_feat = torch.cat([updates, img_feat], dim=1)
-            img_slot_list.append(updates)
-            img_feat_list.append(img_feat)
-        else:
-            img_feat_list.append(img_feat)
+        img_feat_list.append(img_feat)
         
-        # STEP 5: contrastive alignment 
-        cont_loss = 0.
-        avg_img_emb = rearrange(img_feat, "b tt d -> (b tt) d")
-        for i, ts_feat in enumerate(ts_feat_list):
-            ts_feat = rearrange(ts_feat.clone(), "b tt d -> b d tt")
-            order = 2 ** i
-            avg_ts_emb = F.avg_pool1d(ts_feat, kernel_size=(self.tt_max // (self.num_imgs * order)), 
-                                      stride=(self.tt_max // (self.num_imgs * order)))
-            avg_ts_emb = rearrange(avg_ts_emb, "b d tt -> (b tt) d")
-            cont_loss += self.infonce_loss(avg_ts_emb, avg_img_emb)
-
-        # STEP 6: fusion
+        ts_feat_concat = torch.cat(ts_feat_list, dim=1)
+        img_feat_concat = torch.cat(img_feat_list, dim=1)
+        
+        cont_loss = torch.tensor(0.).type_as(x_ts)
+        # recon_loss = torch.tensor(0.).type_as(x_ts)
+        ts_recon_loss = torch.tensor(0.).type_as(x_ts)
+        img_recon_loss = torch.tensor(0.).type_as(x_ts)
         if self.use_prototype:
-            concat_ts_slot = torch.cat(ts_slot_list, dim=1)
+            batch_size = x_ts.size(0)
+            shared_mu = self.shared_slots_mu.expand(batch_size, self.num_slots, -1)
+            shared_sigma = self.shared_slots_logsigma.exp().expand(batch_size, self.num_slots, -1)
+            shared_slots = shared_mu + shared_sigma * torch.randn(shared_mu.shape).type_as(x_ts)
+            # ts_mu = self.ts_slots_mu.expand(batch_size, self.num_slots, -1)
+            # ts_sigma = self.ts_slots_logsigma.exp().expand(batch_size, self.num_slots, -1)
+            # ts_slots = ts_mu + ts_sigma * torch.randn(ts_mu.shape).type_as(x_ts)
+            # img_mu = self.img_slots_mu.expand(batch_size, self.num_slots, -1)
+            # img_sigma = self.img_slots_logsigma.exp().expand(batch_size, self.num_slots, -1)
+            # img_slots = img_mu + img_sigma * torch.randn(img_mu.shape).type_as(x_ts)
+
+            pe = self.pe(ts_feat_concat)
+            ts_pe = ts_feat_concat + pe
+            shared_ts_slots, _ = self.ts_grouping(shared_slots, ts_pe)
+            shared_ts_slots = F.normalize(shared_ts_slots, dim=-1)
+            # ts_slots, _ = self.ts_grouping(ts_slots, ts_pe)
+            # ts_slots = F.normalize(ts_slots, dim=-1)
+            
+            pe = self.pe(img_feat_concat)
+            img_pe = img_feat_concat + pe
+            shared_img_slots, _ = self.img_grouping(shared_slots, img_pe)
+            shared_img_slots = F.normalize(shared_img_slots, dim=-1)
+            # img_slots, _ = self.img_grouping(img_slots, img_pe)
+            # img_slots = F.normalize(img_slots, dim=-1)
+
+            # compute contrastive loss
+            global_ts_feat = shared_ts_slots.mean(dim=1)
+            global_img_feat = shared_img_slots.mean(dim=1)
+            global_feat = torch.cat([global_ts_feat, global_img_feat], dim=1)
+            slot_weights = F.softmax(self.weight_proj(global_feat), dim=-1)
+            pair_similarity = torch.einsum('bnd,cnd->bcn', shared_ts_slots, shared_img_slots)
+            similarity = torch.einsum('bcn,bn->bc', pair_similarity, slot_weights)
+            cont_loss = self.infonce_loss(similarity, temperature=0.2)
+
+            # concat_ts_slot = torch.cat([shared_ts_slots, ts_slots], dim=1)
+            concat_ts_slot = shared_ts_slots
             concat_ts_feat = torch.cat(ts_feat_list, dim=1)
-            concat_img_slot = torch.cat(img_slot_list, dim=1)
+            # concat_img_slot = torch.cat([shared_img_slots, img_slots], dim=1)
+            concat_img_slot = shared_img_slots
             concat_img_feat = torch.cat(img_feat_list, dim=1)
+            # both slots and timestamp-level embeddings are used
             concat_feat = torch.cat([concat_ts_slot, concat_ts_feat,
-                                    concat_img_slot, concat_img_feat], dim=1)
+                                     concat_img_slot, concat_img_feat], dim=1)
+            # concat_feat = torch.cat([concat_ts_slot, concat_img_slot], dim=1)
+
+            # using predicted slot features to reconstruct regular time series
+            ts_tgt_embs = rearrange(proj_x_ts_reg, "tt b d -> b tt d")
+            mask = nn.Transformer.generate_square_subsequent_mask(self.tt_max - 1)
+            pred_ts_emb = self.ts_decoder(tgt=ts_tgt_embs[:, :-1], memory=concat_ts_slot, tgt_mask=mask, tgt_is_causal=True)
+            pred_ts = self.ts_proj(pred_ts_emb)
+            ts_recon_loss = F.mse_loss(pred_ts, reg_ts[:, 1:])
+
+            img_tgt_embs = rearrange(proj_x_img_irg, "tt b d -> b tt d")
+            pred_img_emb = self.img_decoder(tgt=img_tgt_embs[:, :-1], memory=concat_img_slot, tgt_mask=mask, tgt_is_causal=True)
+            img_recon_loss = F.mse_loss(pred_img_emb, img_tgt_embs[:, 1:])
         else:
             concat_ts_feat = torch.cat(ts_feat_list, dim=1)
             concat_img_feat = torch.cat(img_feat_list, dim=1)
             concat_feat = torch.cat([concat_ts_feat, concat_img_feat], dim=1)
+
         fusion_feat = self.fusion_layer(concat_feat)
 
         # STEP 7: make prediction
         if self.use_prototype:
             num_ts_tokens = concat_ts_slot.size(1) + concat_ts_feat.size(1)
+            # num_ts_tokens = concat_ts_slot.size(1)
         else:
             num_ts_tokens = concat_ts_feat.size(1)
-        # num_img_tokens = concat_img_slot.size(1) + concat_img_feat.size(1)
-        ts_pred_tokens = fusion_feat[:, :num_ts_tokens, :]
-        attn, ts_pred_tokens = self.ts_atten_pooling(ts_pred_tokens)
-        last_ts_feat = torch.bmm(attn.permute(0, 2, 1), ts_pred_tokens).squeeze(dim=1)
-        img_pred_tokens = fusion_feat[:, num_ts_tokens:, :]
-        attn, img_pred_tokens = self.img_atten_pooling(img_pred_tokens)
-        last_img_feat = torch.bmm(attn.permute(0, 2, 1), img_pred_tokens).squeeze(dim=1)
+        
+        # num_text_tokens = concat_text_slot.size(1) + concat_text_feat.size(1)
+        last_ts_feat = torch.mean(fusion_feat[:, :num_ts_tokens, :], dim=1)
+        last_img_feat = torch.mean(fusion_feat[:, num_ts_tokens:, :], dim=1)
         last_hs = torch.cat([last_ts_feat, last_img_feat], dim=1)
 
-        # # attention pooling
-        # if self.pooling_type == "attention":
-        #     attn, last_ts_feat = self.atten_pooling(last_ts_feat)
-        #     last_hs = torch.bmm(attn.permute(0, 2, 1),
-        #                         last_ts_feat).squeeze(dim=1)
-        # elif self.pooling_type == "mean":
-        #     last_hs = last_ts_feat.mean(dim=1)
-        # elif self.pooling_type == "last":
-        #     last_hs = last_ts_feat[:, -1, :]
-
-        # MLP for the final prediction
-        # last_hs_proj = self.proj2(
-        #     F.dropout(F.relu(self.proj1(last_hs)), p=self.dropout, training=self.training))
-        # last_hs_proj += last_hs
         output = self.out_layer(last_hs)
-
         loss_dict = {
-            "slot_loss": slot_loss,
-            "cont_loss": cont_loss 
+            "cont_loss": cont_loss,
+            "ts_recon_loss": ts_recon_loss,
+            "text_recon_loss": img_recon_loss,
         }
         if self.task == 'ihm':
             if labels != None:

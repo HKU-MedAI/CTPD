@@ -309,6 +309,70 @@ class PhenotypingReader(Reader):
                 "name": name}
 
 
+class ReadmissionReader(Reader):
+    def __init__(self, dataset_dir, listfile=None, period_length=48.0, columns=[]):
+        """ Reader for readmission-30d prediction task.
+
+        :param dataset_dir:   Directory where timeseries files are stored.
+        :param listfile:      Path to a listfile. If this parameter is left `None` then
+                              `dataset_dir/listfile.csv` will be used.
+        :param period_length: Length of the period (in hours) from which the prediction is done.
+        """
+        Reader.__init__(self, dataset_dir, listfile)
+        self._data = [line.split(',') for line in self._data]
+        # self._data = [(x, int(y), int(i), int(r), int(g), int(a), int(m)) for (x, y, i, r, g, a, m) in self._data]
+        self._data = [(x, int(y)) for (x, y) in self._data]
+        self._period_length = period_length
+        self.columns = columns
+
+    def _read_timeseries(self, ts_filename):
+        ret = []
+        with open(os.path.join(self._dataset_dir, ts_filename), "r") as tsfile:
+            header = tsfile.readline().strip().split(',')
+            if len(self.columns) > 0:
+                indices = [header.index(column)
+                           for column in ["Hours"] + self.columns]
+            else:
+                indices = [i for i in range(len(header))]
+            assert header[0] == "Hours"
+            for line in tsfile:
+                mas = line.strip().split(',')
+                ret.append(np.array(mas)[indices])
+        return (np.stack(ret), header)
+
+    def read_example(self, index):
+        """ Reads the example with given index.
+
+        :param index: Index of the line of the listfile to read (counting starts from 0).
+        :return: Dictionary with the following keys:
+            X : np.array
+                2D array containing all events. Each row corresponds to a moment.
+                First column is the time and other columns correspond to different
+                variables.
+            t : float
+                Length of the data in hours. Note, in general, it is not equal to the
+                timestamp of last event.
+            y : int (0 or 1)
+                In-hospital mortality.
+            header : array of strings
+                Names of the columns. The ordering of the columns is always the same.
+            name: Name of the sample.
+        """
+        if index < 0 or index >= len(self._data):
+            raise ValueError(
+                "Index must be from 0 (inclusive) to number of lines (exclusive).")
+
+        name = self._data[index][0]
+        t = self._period_length
+        y = self._data[index][1]
+        (X, header) = self._read_timeseries(name)
+
+        return {"X": X,
+                "t": t,
+                "y": y,
+                "header": header,
+                "name": name}
+
 
 class MultitaskReader(Reader):
     def __init__(self, dataset_dir, listfile=None):

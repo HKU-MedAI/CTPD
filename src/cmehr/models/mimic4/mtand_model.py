@@ -1,7 +1,7 @@
 import numpy as np
 from PIL import Image
 import math
-import ot
+# import ot
 import ipdb
 from einops import rearrange
 from typing import Optional, List
