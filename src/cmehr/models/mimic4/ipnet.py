@@ -176,7 +176,7 @@ class IPNetModule(MIMIC4LightningModule):
         _, out = self.gru(interp.permute(0, 2, 1))
         output = self.pred_layer(out.squeeze(0))
 
-        if self.task == 'ihm':
+        if self.task in ['ihm', 'readm']:
             if labels != None:
                 ce_loss = self.loss_fct1(output, labels)
                 return ce_loss

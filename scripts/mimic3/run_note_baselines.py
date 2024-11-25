@@ -29,7 +29,7 @@ CUDA_VISIBLE_DEVICES=6 python run_note_baselines.py --task pheno --model_name gr
 '''
 parser = ArgumentParser(description="PyTorch Lightning EHR Model") 
 parser.add_argument("--task", type=str, default="pheno",
-                    choices=["ihm", "decomp", "los", "pheno"])
+                    choices=["ihm", "decomp", "readm", "pheno"])
 parser.add_argument("--batch_size", type=int, default=128)
 parser.add_argument("--num_workers", type=int, default=4)
 parser.add_argument("--update_counts", type=int, default=3)
@@ -66,7 +66,7 @@ def cli_main():
         if args.first_nrows == -1:
             args.first_nrows = None
 
-        if args.task == "ihm":
+        if args.task in ["ihm", "readm"]:
             args.period_length = 48
         elif args.task == "pheno":
             args.period_length = 24
@@ -135,7 +135,7 @@ def cli_main():
             name=run_name,
             save_dir=str(ROOT_PATH / "log"),
             project="cm-ehr", log_model=False)
-        if args.task == "ihm":
+        if args.task in ["ihm", "readm"]:
             callbacks = [
                 LearningRateMonitor(logging_interval="step"),
                 ModelCheckpoint(

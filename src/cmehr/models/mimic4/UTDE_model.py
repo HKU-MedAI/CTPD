@@ -100,7 +100,7 @@ class UTDEModule(MIMIC4LightningModule):
         self.proj2 = nn.Linear(self.d_ts, self.d_ts)
         self.out_layer = nn.Linear(self.d_ts, self.num_labels)
 
-        # if self.task == 'ihm':
+        # if self.task in ['ihm', 'readm']:
         #     self.loss_fct1 = nn.CrossEntropyLoss()
         # elif self.task == 'pheno':
         #     self.loss_fct1 = nn.BCEWithLogitsLoss()
@@ -237,7 +237,7 @@ class UTDEModule(MIMIC4LightningModule):
         if torch.isnan(output).any():
             ipdb.set_trace()
 
-        if self.task == 'ihm':
+        if self.task in ['ihm', 'readm']:
             if labels != None:
                 return self.loss_fct1(output, labels)
             return F.softmax(output, dim=-1)[:, 1]

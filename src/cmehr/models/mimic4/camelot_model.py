@@ -510,7 +510,7 @@ class CAMELOTModule(MIMIC4LightningModule):
 
         additional_loss = self.alpha_2 * l_pat_entr + self.alpha_3 * l_clus_entr + self.beta * l_clus
 
-        if self.task == 'ihm':
+        if self.task in ['ihm', 'readm']:
             if labels != None:
                 ce_loss = self.loss_fct1(output, labels)
                 return ce_loss + additional_loss

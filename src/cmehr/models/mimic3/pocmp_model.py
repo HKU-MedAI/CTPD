@@ -502,7 +502,7 @@ class POCMPModule(MIMIC3LightningModule):
             "ts_recon_loss": ts_recon_loss,
             "text_recon_loss": text_recon_loss,
         }
-        if self.task == 'ihm':
+        if self.task in ['ihm', 'readm']:
             if labels != None:
                 ce_loss = self.loss_fct1(output, labels)
                 loss_dict["ce_loss"] = ce_loss

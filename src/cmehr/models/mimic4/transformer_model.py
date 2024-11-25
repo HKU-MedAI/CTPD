@@ -81,7 +81,7 @@ class TransformerModule(MIMIC4LightningModule):
         pooled_output = sequence_output.mean(dim=1)
         output = self.fc(pooled_output)
 
-        if self.task == 'ihm':
+        if self.task in ['ihm', 'readm']:
             if labels != None:
                 ce_loss = self.loss_fct1(output, labels)
                 return ce_loss

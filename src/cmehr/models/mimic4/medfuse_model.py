@@ -134,7 +134,7 @@ class MedFuseModule(MIMIC4LightningModule):
         proj2 = F.relu(self.proj2(proj1))
         output = self.out_layer(proj2)
 
-        if self.task == 'ihm':
+        if self.task in ['ihm', 'readm']:
             if labels != None:
                 ce_loss = self.loss_fct1(output, labels)
                 return ce_loss

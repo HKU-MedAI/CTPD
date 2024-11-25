@@ -15,7 +15,7 @@ from lightning.pytorch.loggers import WandbLogger
 from cmehr.dataset import MIMIC3DataModule
 from cmehr.models.mimic4 import (
     CNNModule, ProtoTSModel, IPNetModule, GRUDModule, SEFTModule,
-    MTANDModule, DGM2OModule, MedFuseModule, UTDEModule)
+    MTANDModule, DGM2OModule, MedFuseModule, UTDEModule, LSTMModule)
 from cmehr.models.mimic3.pocmp_model import POCMPModule
 from cmehr.paths import *
 
@@ -25,7 +25,7 @@ torch.set_float32_matmul_precision("high")
 
 parser = ArgumentParser(description="PyTorch Lightning EHR Model")
 parser.add_argument("--task", type=str, default="pheno",
-                    choices=["ihm", "decomp", "los", "pheno"])
+                    choices=["ihm", "decomp", "los", "pheno", "readm"])
 parser.add_argument("--batch_size", type=int, default=128)
 parser.add_argument("--num_workers", type=int, default=4)
 parser.add_argument("--update_counts", type=int, default=3)
@@ -37,7 +37,7 @@ parser.add_argument("--accumulate_grad_batches", type=int, default=1)
 parser.add_argument("--first_nrows", type=int, default=-1)
 parser.add_argument("--model_name", type=str, default="medfuse",
                     choices=["proto_ts", "ipnet", "grud", "seft", "mtand", "dgm2",
-                             "medfuse", "cnn", "utde", "pocmp"])
+                             "medfuse", "cnn", "utde", "pocmp", "lstm"])
 parser.add_argument("--ts_learning_rate", type=float, default=4e-5)
 parser.add_argument("--ckpt_path", type=str,
                     default="")
@@ -73,7 +73,7 @@ def cli_main():
         if args.first_nrows == -1:
             args.first_nrows = None
 
-        if args.task == "ihm":
+        if args.task in ["ihm", "readm"]:
             args.period_length = 48
             args.num_labels = 2
         elif args.task == "pheno":
@@ -141,6 +141,12 @@ def cli_main():
                     args.ckpt_path, **vars(args))
             else:
                 model = CNNModule(**vars(args))
+        elif args.model_name == "lstm":
+            if args.ckpt_path:
+                model = LSTMModule.load_from_checkpoint(
+                    args.ckpt_path, **vars(args))
+            else:
+                model = LSTMModule(**vars(args))
         elif args.model_name == "utde":
             if args.ckpt_path:
                 model = UTDEModule.load_from_checkpoint(
@@ -166,7 +172,7 @@ def cli_main():
             name=run_name,
             save_dir=str(ROOT_PATH / "log"),
             project="pocmp", log_model=False)
-        if args.task == "ihm":
+        if args.task in ["ihm", "readm"]:
             callbacks = [
                 LearningRateMonitor(logging_interval="step"),
                 ModelCheckpoint(

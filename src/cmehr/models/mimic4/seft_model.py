@@ -196,7 +196,7 @@ class SEFTModule(MIMIC4LightningModule):
 
         output = self.mlp(output)
 
-        if self.task == 'ihm':
+        if self.task in ['ihm', 'readm']:
             if labels != None:
                 ce_loss = self.loss_fct1(output, labels)
                 return ce_loss

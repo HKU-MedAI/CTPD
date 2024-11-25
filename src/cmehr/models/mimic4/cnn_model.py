@@ -68,7 +68,7 @@ class CNNModule(MIMIC3LightningModule):
         feat = feat.view(batch_size, -1) # (B, 128, 6 -> B, 128*6)
         output = self.fc(feat)
 
-        if self.task == 'ihm':
+        if self.task in ['ihm', 'readm']:
             if labels != None:
                 ce_loss = self.loss_fct1(output, labels)
                 return ce_loss

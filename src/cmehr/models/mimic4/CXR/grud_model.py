@@ -232,7 +232,7 @@ class MIMIC4GRUDModule(MIMIC4LightningModule):
                 outputs = torch.cat((Hidden_State.unsqueeze(1), outputs), 1)
 
         logits = self.pred_layer(outputs[:, -1, :])
-        if self.task == 'ihm':
+        if self.task in ['ihm', 'readm']:
             if labels != None:
                 ce_loss = self.loss_fct1(logits, labels)
                 return ce_loss

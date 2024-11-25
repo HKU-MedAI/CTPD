@@ -344,7 +344,7 @@ class DiffEMModule(MIMIC4LightningModule):
         pool_output = self.pool(att_feat.permute(0, 2, 1))
         output = pool_output["bag_logits"]
 
-        if self.task == 'ihm':
+        if self.task in ['ihm', 'readm']:
             if labels != None:
                 ce_loss = self.loss_fct1(output, labels)
                 return ce_loss

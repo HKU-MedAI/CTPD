@@ -27,7 +27,6 @@ torch.set_float32_matmul_precision("high")
 '''
 CUDA_VISIBLE_DEVICES=0,1,2,3 python train_mimic4.py --task ihm --model_name pocmp --devices 4 --batch_size 12 \
 
-
 CUDA_VISIBLE_DEVICES=0,1,2,3 python train_mimic4.py --task pheno --model_name pocmp --devices 4 --batch_size 12 \
     --use_prototype --use_multiscale
 '''
@@ -60,6 +59,8 @@ parser.add_argument("--use_prototype", action="store_true")
 parser.add_argument("--use_multiscale", action="store_true")
 parser.add_argument("--lamb1", type=float, default=1.)
 parser.add_argument("--lamb2", type=float, default=1.)
+parser.add_argument("--lamb3", type=float, default=0)
+parser.add_argument("--num_slots", type=int, default=16)
 args = parser.parse_args()
 
 

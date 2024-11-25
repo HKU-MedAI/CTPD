@@ -58,7 +58,7 @@ class FlatModule(MIMIC3NoteModule):
         last_hs_proj += last_hs
         output = self.out_layer(last_hs_proj)
 
-        if self.task == 'ihm':
+        if self.task in ['ihm', 'readm']:
             if labels != None:
                 ce_loss = self.loss_fct1(output, labels)
                 return ce_loss
@@ -79,7 +79,7 @@ if __name__ == "__main__":
     from cmehr.dataset.mimic3_downstream_datamodule import MIMIC3DataModule
 
     datamodule = MIMIC3DataModule(
-        file_path=str(DATA_PATH / "output_mimic3/pheno"),
+        file_path=str(DATA_PATH / "output_mimic3/readm"),
         tt_max=48,
         bert_type="prajjwal1/bert-tiny",
         max_length=512
@@ -102,7 +102,7 @@ if __name__ == "__main__":
     label: torch.Size([4])
     """
     model = FlatModule(
-        task="pheno",
+        task="readm",
         period_length=48,
         bert_type="prajjwal1/bert-tiny",
     )

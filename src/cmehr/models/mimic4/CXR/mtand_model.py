@@ -143,7 +143,7 @@ class MIMIC4MTANDModule(MIMIC4LightningModule):
         last_hs_proj += last_hs
         output = self.out_layer(last_hs_proj)
 
-        if self.task == 'ihm':
+        if self.task in ['ihm', 'readm']:
             if labels != None:
                 ce_loss = self.loss_fct1(output, labels)
                 return ce_loss

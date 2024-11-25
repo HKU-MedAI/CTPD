@@ -63,7 +63,7 @@ class RNNModule(MIMIC4LightningModule):
         output = self.fc(r_out)
         # print('output: ', output.shape)
 
-        if self.task == 'ihm':
+        if self.task in ['ihm', 'readm']:
             if labels != None:
                 ce_loss = self.loss_fct1(output, labels)
                 return ce_loss

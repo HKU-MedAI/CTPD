@@ -355,7 +355,7 @@ class DGM2OModule(MIMIC4LightningModule):
             vec = torch.cat((vec, static_data), dim=1)
 
         logits = self.pred_layer(vec)
-        if self.task == 'ihm':
+        if self.task in ['ihm', 'readm']:
             if labels != None:
                 ce_loss = self.loss_fct1(logits, labels)
                 return ce_loss

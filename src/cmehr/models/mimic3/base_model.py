@@ -25,7 +25,7 @@ class MIMIC3LightningModule(LightningModule):
         super().__init__()
         self.save_hyperparameters()
 
-        if task == "ihm":
+        if task in ["ihm", "readm"]:
             num_labels = 2
             period_length = 48
             self.best_thres = [0]
@@ -44,7 +44,7 @@ class MIMIC3LightningModule(LightningModule):
         self.tt_max = period_length
         self.num_labels = num_labels
 
-        if self.task == 'ihm':
+        if self.task in ['ihm', 'readm']:
             self.loss_fct1 = nn.CrossEntropyLoss()
         elif self.task == 'pheno':
             self.loss_fct1 = nn.BCEWithLogitsLoss()
@@ -127,7 +127,7 @@ class MIMIC3LightningModule(LightningModule):
         all_logits = np.concatenate(all_logits, axis=0)
         all_labels = np.concatenate(all_labels, axis=0)
 
-        if self.task == "ihm":
+        if self.task in ["ihm", "readm"]:
             if np.unique(all_labels).shape[0] == 2:
                 auroc = metrics.roc_auc_score(
                     all_labels, all_logits)

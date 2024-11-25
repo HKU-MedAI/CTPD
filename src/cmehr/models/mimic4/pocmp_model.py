@@ -165,7 +165,7 @@ class POCMPModule(MIMIC4LightningModule):
 
             # define slot attention modules to discover correspondence
             self.ts_grouping = SlotAttention(dim=embed_dim)
-            self.text_grouping = SlotAttention(dim=embed_dim)
+            self.img_grouping = SlotAttention(dim=embed_dim)
 
             # gating mechanism
             self.weight_proj = nn.Sequential(
@@ -232,11 +232,11 @@ class POCMPModule(MIMIC4LightningModule):
         '''
         # convolution over regular time series
         x_ts_reg = reg_ts.transpose(1, 2)
-        proj_x_ts_reg = x_ts_reg if self.orig_reg_d_ts == self.d_ts else self.proj_ts(
-            x_ts_reg)
+        proj_x_ts_reg = self.proj_reg_ts(x_ts_reg)
         proj_x_ts_reg = proj_x_ts_reg.permute(2, 0, 1)
 
         return proj_x_ts_reg
+
 
     def gate_ts(self,
                 proj_x_ts_irg: torch.Tensor,
@@ -363,7 +363,6 @@ class POCMPModule(MIMIC4LightningModule):
 
         # STEP 3: extract prototypes from the multi-scale features
         slot_loss = 0.
-        ts_slot_list = []
         ts_feat_list = []
         # STEP 3: prototype-based learning
         ts_feat_list = []
@@ -473,7 +472,7 @@ class POCMPModule(MIMIC4LightningModule):
             "ts_recon_loss": ts_recon_loss,
             "text_recon_loss": img_recon_loss,
         }
-        if self.task == 'ihm':
+        if self.task in ['ihm', 'readm']:
             if labels != None:
                 ce_loss = self.loss_fct1(output, labels)
                 loss_dict["ce_loss"] = ce_loss

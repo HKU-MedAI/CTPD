@@ -453,7 +453,7 @@ class OTKModule(MIMIC4LightningModule):
         # output = pool_output["bag_logits"]
         output = self.fc(att_feat)
 
-        if self.task == 'ihm':
+        if self.task in ['ihm', 'readm']:
             if labels != None:
                 ce_loss = self.loss_fct1(output, labels)
                 return ce_loss
