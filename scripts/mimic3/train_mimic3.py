@@ -17,6 +17,8 @@ from cmehr.models.mimic4 import (
     CNNModule, ProtoTSModel, IPNetModule, GRUDModule, SEFTModule,
     MTANDModule, DGM2OModule, MedFuseModule, UTDEModule, LSTMModule)
 from cmehr.models.mimic3.pocmp_model import POCMPModule
+from cmehr.models.mimic3.pocmp_ts_model import POCMPTSModule
+from cmehr.models.mimic3.pocmp_note_model import POCMPNoteModule
 from cmehr.paths import *
 
 torch.backends.cudnn.deterministic = True  # type: ignore
@@ -37,7 +39,7 @@ parser.add_argument("--accumulate_grad_batches", type=int, default=1)
 parser.add_argument("--first_nrows", type=int, default=-1)
 parser.add_argument("--model_name", type=str, default="medfuse",
                     choices=["proto_ts", "ipnet", "grud", "seft", "mtand", "dgm2",
-                             "medfuse", "cnn", "utde", "pocmp", "lstm"])
+                             "medfuse", "cnn", "utde", "pocmp", "lstm", "pocmp_ts", "pocmp_note"])
 parser.add_argument("--ts_learning_rate", type=float, default=4e-5)
 parser.add_argument("--ckpt_path", type=str,
                     default="")
@@ -159,6 +161,18 @@ def cli_main():
                     args.ckpt_path, **vars(args))
             else:
                 model = POCMPModule(**vars(args))
+        elif args.model_name == "pocmp_ts":
+            if args.ckpt_path:
+                model = POCMPTSModule.load_from_checkpoint(
+                    args.ckpt_path, **vars(args))
+            else:
+                model = POCMPTSModule(**vars(args))
+        elif args.model_name == "pocmp_note":
+            if args.ckpt_path:
+                model = POCMPNoteModule.load_from_checkpoint(
+                    args.ckpt_path, **vars(args))
+            else:
+                model = POCMPNoteModule(**vars(args))
         else:
             raise ValueError("Invalid model name")
 

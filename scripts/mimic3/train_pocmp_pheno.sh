@@ -26,9 +26,7 @@
 # CUDA_VISIBLE_DEVICES=1 python train_mimic3.py --task pheno --model_name pocmp --devices 1 \
 #     --use_multiscale --use_prototype --lamb1 0.1 --lamb2 0.1 --lamb3 0.1
 
-CUDA_VISIBLE_DEVICES=2 python train_mimic3.py --task pheno --model_name pocmp --devices 1 \
-    --use_multiscale --lamb1 0.1 --lamb2 0.5 --lamb3 0.5 
-
-
-CUDA_VISIBLE_DEVICES=5 python train_mimic3.py --task pheno --model_name pocmp --devices 1 \
-    --use_prototype --lamb1 0.1 --lamb2 0.5 --lamb3 0.5 --ts_learning_rate 1e-3
+CUDA_VISIBLE_DEVICES=7 python train_mimic3.py --task pheno --model_name pocmp_ts --devices 1 \
+    --use_multiscale --use_prototype --lamb1 0.1 --lamb2 0.1 --lamb3 0.1
+# CUDA_VISIBLE_DEVICES=0 python train_mimic3.py --task pheno --model_name pocmp_note --devices 1 \
+#     --use_multiscale --use_prototype --lamb1 0.1 --lamb2 0.1 --lamb3 0.1
