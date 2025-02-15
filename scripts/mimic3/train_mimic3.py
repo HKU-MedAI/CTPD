@@ -16,9 +16,7 @@ from cmehr.dataset import MIMIC3DataModule
 from cmehr.models.mimic4 import (
     CNNModule, ProtoTSModel, IPNetModule, GRUDModule, SEFTModule,
     MTANDModule, DGM2OModule, MedFuseModule, UTDEModule, LSTMModule)
-from cmehr.models.mimic3.pocmp_model import POCMPModule
-from cmehr.models.mimic3.pocmp_ts_model import POCMPTSModule
-from cmehr.models.mimic3.pocmp_note_model import POCMPNoteModule
+from cmehr.models.mimic3.ctpd_model import CTPDModule
 from cmehr.paths import *
 
 torch.backends.cudnn.deterministic = True  # type: ignore
@@ -37,9 +35,9 @@ parser.add_argument("--devices", type=int, default=1)
 parser.add_argument("--max_length", type=int, default=1024)
 parser.add_argument("--accumulate_grad_batches", type=int, default=1)
 parser.add_argument("--first_nrows", type=int, default=-1)
-parser.add_argument("--model_name", type=str, default="medfuse",
+parser.add_argument("--model_name", type=str, default="ctpd",
                     choices=["proto_ts", "ipnet", "grud", "seft", "mtand", "dgm2",
-                             "medfuse", "cnn", "utde", "pocmp", "lstm", "pocmp_ts", "pocmp_note"])
+                             "medfuse", "cnn", "utde", "ctpd", "lstm"])
 parser.add_argument("--ts_learning_rate", type=float, default=4e-5)
 parser.add_argument("--ckpt_path", type=str,
                     default="")
@@ -155,24 +153,12 @@ def cli_main():
                     args.ckpt_path, **vars(args))
             else:
                 model = UTDEModule(**vars(args))
-        elif args.model_name == "pocmp":
+        elif args.model_name == "ctpd":
             if args.ckpt_path:
-                model = POCMPModule.load_from_checkpoint(
+                model = CTPDModule.load_from_checkpoint(
                     args.ckpt_path, **vars(args))
             else:
-                model = POCMPModule(**vars(args))
-        elif args.model_name == "pocmp_ts":
-            if args.ckpt_path:
-                model = POCMPTSModule.load_from_checkpoint(
-                    args.ckpt_path, **vars(args))
-            else:
-                model = POCMPTSModule(**vars(args))
-        elif args.model_name == "pocmp_note":
-            if args.ckpt_path:
-                model = POCMPNoteModule.load_from_checkpoint(
-                    args.ckpt_path, **vars(args))
-            else:
-                model = POCMPNoteModule(**vars(args))
+                model = CTPDModule(**vars(args))
         else:
             raise ValueError("Invalid model name")
 
@@ -185,7 +171,7 @@ def cli_main():
         logger = WandbLogger(
             name=run_name,
             save_dir=str(ROOT_PATH / "log"),
-            project="pocmp", log_model=False)
+            project="CTPD", log_model=False)
         if args.task in ["ihm", "readm"]:
             callbacks = [
                 LearningRateMonitor(logging_interval="step"),

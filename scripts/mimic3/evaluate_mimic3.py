@@ -7,8 +7,8 @@ import torch
 # from cmehr.dataset.mimic4_downstream_datamodule import MIMIC4DataModule
 from cmehr.dataset.mimic3_downstream_datamodule import MIMIC3DataModule
 from tqdm import tqdm
-# from cmehr.models.mimic4 import (POCMPModule)
-from cmehr.models.mimic3.pocmp_model import POCMPModule
+# from cmehr.models.mimic4 import (CTPDModule)
+from cmehr.models.mimic3.CTPD_model import CTPDModule
 from pprint import pprint
 from cmehr.paths import *
 
@@ -19,7 +19,7 @@ torch.set_float32_matmul_precision("high")
 
 '''
 CUDA_VISIBLE_DEVICES=2 python evaluate_mimic3.py --task pheno \
-    --ckpt_path /home/*/Documents/MMMSPG/log/ckpts/mimic3_pheno_pocmp_2024-10-09_05-54-19/epoch=41-step=8358.ckpt
+    --ckpt_path /home/*/Documents/MMMSPG/log/ckpts/mimic3_pheno_CTPD_2024-10-09_05-54-19/epoch=41-step=8358.ckpt
 '''
 parser = ArgumentParser()
 parser.add_argument("--task", type=str, default="ihm")
@@ -29,7 +29,7 @@ parser.add_argument("--batch_size", type=int, default=128)
 parser.add_argument("--num_workers", type=int, default=4)
 parser.add_argument("--first_nrows", type=int, default=None)
 parser.add_argument("--ckpt_path", type=str, 
-                    default="/home/*/Documents/MMMSPG/log/ckpts/mimic3_pheno_pocmp_2024-10-09_05-54-19/epoch=37-step=7562.ckpt")
+                    default="/home/*/Documents/MMMSPG/log/ckpts/mimic3_pheno_CTPD_2024-10-09_05-54-19/epoch=37-step=7562.ckpt")
 args = parser.parse_args()
 
 
@@ -139,7 +139,7 @@ def main():
     elif args.task == "pheno":
         args.period_length = 24
 
-    model = POCMPModule.load_from_checkpoint(args.ckpt_path, map_location=torch.device("cuda:0"))
+    model = CTPDModule.load_from_checkpoint(args.ckpt_path, map_location=torch.device("cuda:0"))
     model.eval()
     dm = MIMIC3DataModule(
             file_path=str(

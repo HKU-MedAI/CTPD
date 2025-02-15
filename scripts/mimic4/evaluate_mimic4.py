@@ -6,7 +6,7 @@ import sklearn.metrics as metrics
 import torch
 from cmehr.dataset.mimic4_downstream_datamodule import MIMIC4DataModule
 from tqdm import tqdm
-from cmehr.models.mimic4 import (POCMPModule)
+from cmehr.models.mimic4 import (CTPDModule)
 from pprint import pprint
 from cmehr.paths import *
 
@@ -26,7 +26,7 @@ parser.add_argument("--batch_size", type=int, default=16)
 parser.add_argument("--num_workers", type=int, default=4)
 parser.add_argument("--first_nrows", type=int, default=None)
 parser.add_argument("--ckpt_path", type=str, 
-                    default="/home/*/Documents/MMMSPG/log/ckpts/mimic4_ihm_pocmp_2024-10-02_23-12-01/epoch=46-step=4230.ckpt")
+                    default="/home/*/Documents/MMMSPG/log/ckpts/mimic4_ihm_CTPD_2024-10-02_23-12-01/epoch=46-step=4230.ckpt")
 args = parser.parse_args()
 
 
@@ -138,7 +138,7 @@ def main():
     elif args.task == "pheno":
         args.period_length = 24
 
-    model = POCMPModule.load_from_checkpoint(args.ckpt_path, map_location=torch.device("cuda:0"))
+    model = CTPDModule.load_from_checkpoint(args.ckpt_path, map_location=torch.device("cuda:0"))
     model.eval()
     dm = MIMIC4DataModule(
         mimic_cxr_dir=str(MIMIC_CXR_JPG_PATH),

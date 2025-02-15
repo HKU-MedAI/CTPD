@@ -19,10 +19,10 @@ from cmehr.models.mimic4.mtand_model import Attn_Net_Gated
 from cmehr.utils.lr_scheduler import linear_warmup_decay
 from cmehr.models.common.dilated_conv import DilatedConvEncoder, ConvBlock
 from cmehr.models.mimic4.position_encode import PositionalEncoding1D
-from cmehr.models.mimic3.pocmp_model import SlotAttention
+from cmehr.models.mimic3.CTPD_model import SlotAttention
 
 
-class POCMPModule(MIMIC4LightningModule):
+class CTPDModule(MIMIC4LightningModule):
     '''
     The class of prototype-oriented contrastive multi-modal pretraining model.
     '''
@@ -539,7 +539,7 @@ if __name__ == "__main__":
     reg_imgs_mask:  torch.Size([4, 5])
     label: torch.Size([4])
     """
-    model = POCMPModule(
+    model = CTPDModule(
         use_multiscale=True,
         use_prototype=True
     )

@@ -1,4 +1,4 @@
-# POCMP model for mimic3 dataset
+# CTPD model for mimic3 dataset
 from typing import Dict
 import ipdb
 from einops import rearrange
@@ -20,7 +20,7 @@ from cmehr.utils.lr_scheduler import linear_warmup_decay
 from cmehr.models.common.dilated_conv import DilatedConvEncoder, ConvBlock
 from cmehr.models.mimic4.position_encode import PositionalEncoding1D
 from cmehr.models.mimic4.UTDE_modules import BertForRepresentation
-# from cmehr.models.mimic4.pocmp_model import SlotAttention
+# from cmehr.models.mimic4.CTPD_model import SlotAttention
 
 
 class SlotAttention(nn.Module):
@@ -80,7 +80,7 @@ class SlotAttention(nn.Module):
         return slots, attn
     
 
-class POCMPModule(MIMIC3LightningModule):
+class CTPDModule(MIMIC3LightningModule):
     '''
     The class of prototype-oriented contrastive multi-modal pretraining model.
 
@@ -571,7 +571,7 @@ if __name__ == "__main__":
     note_time_mask: torch.Size([4, 5])
     label: torch.Size([4])
     """
-    model = POCMPModule(
+    model = CTPDModule(
         task="pheno",
         use_multiscale=True,
         use_prototype=True,

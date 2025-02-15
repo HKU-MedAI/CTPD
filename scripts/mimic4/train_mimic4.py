@@ -15,7 +15,7 @@ from cmehr.dataset.mimic4_downstream_datamodule import MIMIC4DataModule
 from cmehr.models.mimic4 import (
     CNNModule, ProtoTSModel, IPNetModule, GRUDModule, SEFTModule, RNNModule, LSTMModule,
     MTANDModule, DGM2OModule, MedFuseModule, TransformerModule, MILLETModule, OTKModule,
-    CAMELOTModule, TSLANETModule, POCMPModule)
+    CAMELOTModule, TSLANETModule, CTPDModule)
 from cmehr.paths import *
 
 
@@ -25,9 +25,9 @@ torch.set_float32_matmul_precision("high")
 
 
 '''
-CUDA_VISIBLE_DEVICES=0,1,2,3 python train_mimic4.py --task ihm --model_name pocmp --devices 4 --batch_size 12 \
+CUDA_VISIBLE_DEVICES=0,1,2,3 python train_mimic4.py --task ihm --model_name CTPD --devices 4 --batch_size 12 \
 
-CUDA_VISIBLE_DEVICES=0,1,2,3 python train_mimic4.py --task pheno --model_name pocmp --devices 4 --batch_size 12 \
+CUDA_VISIBLE_DEVICES=0,1,2,3 python train_mimic4.py --task pheno --model_name CTPD --devices 4 --batch_size 12 \
     --use_prototype --use_multiscale
 '''
 parser = ArgumentParser(description="PyTorch Lightning EHR Model")
@@ -45,7 +45,7 @@ parser.add_argument("--first_nrows", type=int, default=-1)
 parser.add_argument("--model_name", type=str, default="cnn",
                     choices=["proto_ts", "ipnet", "grud", "seft", "mtand", "dgm2", "rnn",
                              "medfuse", "cnn", "lstm", "transformer", "millet", "camelot",
-                             "otk", "diffem", "tslanet", "pocmp"])
+                             "otk", "diffem", "tslanet", "CTPD"])
 parser.add_argument("--modeltype", type=str, default="TS_CXR",
                     choices=["TS_CXR", "TS", "CXR"],
                     help="Set the model type to use for training")
@@ -191,12 +191,12 @@ def cli_main():
                     args.ckpt_path, **vars(args))
             else:
                 model = TSLANETModule(**vars(args))
-        elif args.model_name == "pocmp":
+        elif args.model_name == "CTPD":
             if args.ckpt_path:
-                model = POCMPModule.load_from_checkpoint(
+                model = CTPDModule.load_from_checkpoint(
                     args.ckpt_path, **vars(args))
             else:
-                model = POCMPModule(**vars(args))
+                model = CTPDModule(**vars(args))
         else:
             raise ValueError("Invalid model name")
 
