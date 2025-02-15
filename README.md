@@ -65,6 +65,9 @@ python -m mimic3models.create_iiregular_ts --task {TASK}
 
 Example commands can be found in `src/cmehr/preprocess/mimic3/run_mimic3_benchmark.sh`.
 
+At the end, you will have a folder `output_mimic3`, which contains the stored pickle files for each task.
+
+We thank awesome open-source repositories [MIMIC-III Benchmark](https://github.com/YerevaNN/mimic3-benchmarks), [ClinicalNotesICU](https://github.com/kaggarwal/ClinicalNotesICU) and [MultimodalMIMIC](https://github.com/XZhang97666/MultimodalMIMIC) for their code.
 
 ### Usage
 
