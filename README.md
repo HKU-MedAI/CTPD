@@ -1,6 +1,6 @@
 # CTPD
 
-<b>CTPD: Cross-Modal Temporal Pattern Discovery for Enhanced Multimodal Electronic Health Records Analysis</b>, ECCV 2024.
+<b>CTPD: Cross-Modal Temporal Pattern Discovery for Enhanced Multimodal Electronic Health Records Analysis</b>, ACL 2025 Findings.
 <br><em>Fuying Wang*, Feng Wu*, Yihan Tang, Lequan Yu</em></br>
 
 [Arxiv](https://arxiv.org/abs/2411.00696) | [Cite](#acknowledgements)
