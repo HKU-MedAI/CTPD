@@ -104,7 +104,7 @@ class InHospitalMortalityReader(Reader):
         """
         Reader.__init__(self, dataset_dir, listfile)
         self._data = [line.split(',') for line in self._data]
-        self._data = [(x, int(y)) for (x, y) in self._data]
+        self._data = [(x, int(y)) for (x, _, _, y) in self._data]
         self._period_length = period_length
         self.columns = columns
 
