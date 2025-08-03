@@ -1,4 +1,13 @@
-# CTPD: Cross-Modal Temporal Pattern Discovery for Enhanced Multimodal Electronic Health Records Analysis
+# CTPD
+
+<b>CTPD: Cross-Modal Temporal Pattern Discovery for Enhanced Multimodal Electronic Health Records Analysis</b>, ECCV 2024.
+<br><em>Fuying Wang*, Feng Wu*, Yihan Tang, Lequan Yu</em></br>
+
+[Arxiv](https://arxiv.org/abs/2411.00696) | [Cite](#acknowledgements)
+
+**Abstract**: Integrating multimodal Electronic Health Records (EHR) data, such as numerical time series and free-text clinical reports, has great potential in predicting clinical outcomes. However, prior work has primarily focused on capturing temporal interactions within individual samples and fusing multimodal information, overlooking critical temporal patterns across patients. These patterns, such as trends in vital signs like abnormal heart rate or blood pressure, can indicate deteriorating health or an impending critical event. Similarly, clinical notes often contain textual descriptions that reflect these patterns. Identifying corresponding temporal patterns across different modalities is crucial for improving the accuracy of clinical outcome predictions, yet it remains a challenging task. To address this gap, we introduce a Cross-Modal Temporal Pattern Discovery (CTPD) framework, designed to efficiently extract meaningful cross-modal temporal patterns from multimodal EHR data. Our approach introduces shared initial temporal pattern representations which are refined using slot attention to generate temporal semantic embeddings. To ensure rich cross-modal temporal semantics in the learned patterns, we introduce a contrastive-based TPNCE loss for cross-modal alignment, along with two reconstruction losses to retain core information of each modality. Evaluations on two clinically critical tasks, 48-hour in-hospital mortality and 24-hour phenotype classification, using the MIMIC-III database demonstrate the superiority of our method over existing approaches.
+
+![](docs/framework.png)
 
 ### Installation
 ```
@@ -87,3 +96,16 @@ sh note_baselines.sh
 ```
 
 Note that the code of baselines is from their official repository.
+
+
+## Acknowledgements
+If you find our work useful in your research or if you use parts of our code, please cite our paper:
+
+```
+@article{wang2024ctpd,
+  title={CTPD: Cross-Modal Temporal Pattern Discovery for Enhanced Multimodal Electronic Health Records Analysis},
+  author={Wang, Fuying and Wu, Feng and Tang, Yihan and Yu, Lequan},
+  journal={arXiv preprint arXiv:2411.00696},
+  year={2024}
+}
+```
