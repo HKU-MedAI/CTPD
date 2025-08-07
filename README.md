@@ -91,7 +91,9 @@ We thank awesome open-source repositories [MIMIC-III Benchmark](https://github.c
 
 Please see the scripts in `scripts/mimic3`.
 
-To run our approach:
+Note that you need to change Line 8 of your saved pickle path in `src/cmehr/paths.py`.
+
+To run CTPD:
 ```
 cd scripts/mimimc3
 sh train_ctpd_ihm.sh

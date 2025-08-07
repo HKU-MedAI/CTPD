@@ -14,4 +14,4 @@ from .otk_model import OTKModule
 from .camelot_model import CAMELOTModule
 from .tslanet_model import TSLANETModule
 from .UTDE_model import UTDEModule
-from .CTPD_model import CTPDModule
+from .ctpd_model import CTPDModule

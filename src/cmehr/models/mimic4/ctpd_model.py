@@ -19,7 +19,7 @@ from cmehr.models.mimic4.mtand_model import Attn_Net_Gated
 from cmehr.utils.lr_scheduler import linear_warmup_decay
 from cmehr.models.common.dilated_conv import DilatedConvEncoder, ConvBlock
 from cmehr.models.mimic4.position_encode import PositionalEncoding1D
-from cmehr.models.mimic3.CTPD_model import SlotAttention
+from cmehr.models.mimic3.ctpd_model import SlotAttention
 
 
 class CTPDModule(MIMIC4LightningModule):
