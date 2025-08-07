@@ -8,10 +8,12 @@ def main():
         description="Split train data into train and validation sets.")
     parser.add_argument('dataset_dir', type=str,
                         help='Path to the directory which contains the dataset')
+    parser.add_argument('--valset', type=str, default='resources/valset.csv',
+                        help='Path to the validation set file relative to the dataset directory')
     args, _ = parser.parse_known_args()
 
     val_patients = set()
-    with open(os.path.join(os.path.dirname(__file__), 'resources/valset.csv'), 'r') as valset_file:
+    with open(args.valset, 'r') as valset_file:
         for line in valset_file:
             x, y = line.split(',')
             if int(y) == 1:

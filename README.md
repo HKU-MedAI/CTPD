@@ -64,10 +64,19 @@ python -m mimic3benchmark.scripts.create_multitask data/root/ data/multitask/
 g. Use the following command to extract validation set from the training set. This step is required for running the baseline models. Likewise, the train/test split, the train/validation split is the same for all tasks.
 
 ```
-python -m mimic3models.split_train_val {dataset-directory}
+python -m mimic3models.split_train_val {dataset-directory} --valset mimic3models/resources/valset_{task}.csv
 ```
 
-f. create pickle files to store multimodal data.
+h. Generate corresponding text files
+```
+cd src/cmehr/preprocess/ClinicalNotesICU/mimic3
+# modify the dataset_path in Line 157 and output_folder in Line 161
+python extract_notes.py
+# modify the mimic_iii_benchmark_path in Line 6
+python extract_T0.py
+```
+
+i. create pickle files to store multimodal data.
 ```
 python -m mimic3models.create_iiregular_ts --task {TASK}
 ``` 
