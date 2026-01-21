@@ -95,7 +95,7 @@ Note that you need to change Line 8 of your saved pickle path in `src/cmehr/path
 
 To run CTPD:
 ```
-cd scripts/mimimc3
+cd scripts/mimic3
 sh train_ctpd_ihm.sh
 sh train_ctpd_pheno.sh
 ```
