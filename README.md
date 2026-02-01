@@ -70,7 +70,7 @@ python -m mimic3models.split_train_val {dataset-directory} --valset mimic3models
 h. Generate corresponding text files
 ```
 cd src/cmehr/preprocess/ClinicalNotesICU/mimic3
-# modify the dataset_path in Line 157 and output_folder in Line 161
+# modify the dataset_path in Line 157 and output_folder in Line 161 (do it for both 'train' and 'test')
 python extract_notes.py
 # modify the mimic_iii_benchmark_path in Line 6
 python extract_T0.py
